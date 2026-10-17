@@ -50,9 +50,9 @@ describe("finishLog", () => {
   ];
 
   it("puts t=0 on the first media sample and keeps events sorted", () => {
-    const log = finishLog({ clipId: "c", boardId: "b", startStep: 2, events }, 1000, 3500);
+    const log = finishLog({ clipId: "c", startBoard: 0, startStep: 2, events }, 1000, 3500);
     expect(parseClipLog(log)).toBe(log);
-    expect(log).toMatchObject({ version: 1, clipId: "c", boardId: "b", startStep: 2, durationMs: 2500 });
+    expect(log).toMatchObject({ version: 2, clipId: "c", startBoard: 0, startStep: 2, durationMs: 2500 });
     expect(log.events).toEqual([
       { t: 0, type: "pointer", x: 1, y: 2 },
       { t: 100, type: "ink", id: "a", points: [[0, 0, 100], [5, 5, 300]] },

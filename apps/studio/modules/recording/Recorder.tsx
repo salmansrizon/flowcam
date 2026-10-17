@@ -1,6 +1,6 @@
 "use client";
 
-import { BOARD_HEIGHT, BOARD_WIDTH, LOG_SCHEMA_VERSION, viewAt, type ClipLog, type LogEvent, type Presentation, type TimedPoint } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, LOG_SCHEMA_VERSION, presentationViewAt, type ClipLog, type LogEvent, type Presentation, type TimedPoint } from "@flowcam/domain";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { startClipCapture, type ClipCapture } from "./clip";
 import { boardRenderer as renderer } from "@flowcam/renderer";
@@ -82,7 +82,7 @@ export function Recorder() {
     };
   }, [stream, phase]);
 
-  // Presenter View: draw viewAt(board, log, now) every frame, the same path the export takes.
+  // Presenter View: draw presentationViewAt(presentation, log, now) every frame, the same path the export takes.
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx || !board) return;
@@ -92,17 +92,17 @@ export function Recorder() {
       const log: ClipLog = {
         version: LOG_SCHEMA_VERSION,
         clipId: clip?.id ?? "",
-        boardId: board.id,
+        startBoard: 0, // ponytail: one Board until S9 adds moving between Boards.
         startStep: clip?.startStep ?? s.step,
         durationMs: 0,
         events: clip?.events ?? [],
       };
-      renderer.render(ctx, board, viewAt(board, log, now), clip ? now - clip.startedAt : 0);
+      renderer.render(ctx, board, presentationViewAt(presentation!, log, now).view, clip ? now - clip.startedAt : 0);
       if (timerRef.current) timerRef.current.textContent = clock(clip ? now - clip.startedAt : 0);
       frame = requestAnimationFrame(draw);
     });
     return () => cancelAnimationFrame(frame);
-  }, [board, phase, s]);
+  }, [board, presentation, phase, s]);
 
   function go(next: Phase) {
     s.phase = next;
@@ -138,7 +138,7 @@ export function Recorder() {
     const manifest = s.manifest!;
     s.clip = null;
     const { mediaStartMs, endMs } = await clip.capture.finish();
-    await writeClipLog(manifest.id, finishLog({ clipId: clip.id, boardId: manifest.boardId, startStep: clip.startStep, events: clip.events }, mediaStartMs, endMs));
+    await writeClipLog(manifest.id, finishLog({ clipId: clip.id, startBoard: 0, startStep: clip.startStep, events: clip.events }, mediaStartMs, endMs));
     manifest.clips.push(clip.id);
     await writeRecording(manifest);
     s.lastClip = { id: clip.id, startStep: clip.startStep };

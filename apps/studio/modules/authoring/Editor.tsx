@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BOARD_HEIGHT, BOARD_WIDTH, type Board, type Element, type ElementType, type Presentation } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, boardView, type Board, type Element, type ElementType, type Presentation } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 import { addElement, addFlowStep, createElement, deleteElement, deleteStep, hitTest, moveElement, moveStep } from "./board-edits";
 import { loadPresentation, newPresentation, savePresentation } from "../presentation/store";
@@ -28,7 +28,18 @@ function stepLabel(board: Board, i: number): string {
     const el = board.elements.find((e) => e.id === id);
     return el ? (el.text ? `${el.type} “${el.text}”` : el.type) : "?";
   };
-  return s.kind === "reveal" ? `Reveal ${s.elementIds.map(name).join(", ")}` : `Flow ${s.on ? "on" : "off"}: ${name(s.arrowId)}`;
+  switch (s.kind) {
+    case "reveal":
+      return `Reveal ${s.elementIds.map(name).join(", ")}`;
+    case "highlight":
+      return `Highlight ${s.elementIds.map(name).join(", ")}`;
+    case "flow":
+      return `Flow ${s.on ? "on" : "off"}: ${name(s.arrowId)}`;
+    case "morph":
+      return `Move ${name(s.elementId)}`;
+    case "focus":
+      return s.rect ? "Focus in" : "Focus out";
+  }
 }
 
 export default function Editor() {
@@ -72,13 +83,8 @@ export default function Editor() {
     const ctx = canvasRef.current!.getContext("2d")!;
     const elements = drag?.kind === "draw" ? [...board.elements, drag.el] : board.elements;
     const shown: Board = { ...board, elements };
-    const view = {
-      stepIndex: board.steps.length,
-      revealedAt: new Map(elements.map((e) => [e.id, -Infinity])),
-      flowing: new Set(elements.filter((e) => e.type === "arrow" && e.flowEnabled).map((e) => e.id)),
-      ink: [],
-      pointer: null,
-    };
+    // Everything visible, at its drawn position, with no Step effects.
+    const view = { ...boardView(shown, []), revealedAt: new Map(elements.map((e) => [e.id, -Infinity])) };
     let frame = requestAnimationFrame(function draw(now) {
       boardRenderer.render(ctx, shown, view, now);
       const sel = elements.find((e) => e.id === selected);

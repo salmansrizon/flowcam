@@ -39,7 +39,7 @@ export function toBoardUnits(clientX: number, clientY: number, rect: { left: num
  * sample (`mediaStartMs`, on the same clock). Anything logged before that sample lands at t=0.
  */
 export function finishLog(
-  clip: { clipId: string; boardId: string; startStep: number; events: LogEvent[] },
+  clip: { clipId: string; startBoard: number; startStep: number; events: LogEvent[] },
   mediaStartMs: number,
   endMs: number,
 ): ClipLog {
@@ -50,7 +50,7 @@ export function finishLog(
   return {
     version: LOG_SCHEMA_VERSION,
     clipId: clip.clipId,
-    boardId: clip.boardId,
+    startBoard: clip.startBoard,
     startStep: clip.startStep,
     durationMs: at(endMs),
     events,

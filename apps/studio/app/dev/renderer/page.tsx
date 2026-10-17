@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { BOARD_HEIGHT, BOARD_WIDTH, type Board, type BoardView, type Element } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, boardView, type Board, type BoardView, type Element } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 
 // Dev harness for the golden-frame tests: draws a fixed Board at `?t=<ms>` into a 1920x1080 canvas.
@@ -24,6 +24,7 @@ const board: Board = { id: "fixture", elements, steps: [] };
 
 function viewFor(): BoardView {
   return {
+    ...boardView(board, []),
     stepIndex: 0,
     // a2 is mid fade-in at t=1500.
     revealedAt: new Map<string, number>([...elements.map((e) => [e.id, -Infinity] as [string, number]), ["a2", 1400]]),

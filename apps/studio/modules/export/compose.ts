@@ -13,7 +13,7 @@ import {
   getFirstEncodableAudioCodec,
   getFirstEncodableVideoCodec,
 } from "mediabunny";
-import { BOARD_HEIGHT, BOARD_WIDTH, viewAt, type Board, type BoardRenderer, type Canvas2D, type ClipLog } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, presentationViewAt, type BoardRenderer, type Canvas2D, type ClipLog, type Presentation } from "@flowcam/domain";
 
 export const FPS = 30;
 
@@ -30,14 +30,15 @@ export interface ExportClip {
 export function composeFrame(
   ctx: Canvas2D,
   renderer: BoardRenderer,
-  board: Board,
+  presentation: Presentation,
   log: ClipLog,
   tMs: number,
   camera: CanvasImageSource | null,
   watermark: boolean,
 ): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  renderer.render(ctx, board, viewAt(board, log, tMs), tMs);
+  const pv = presentationViewAt(presentation, log, tMs);
+  renderer.render(ctx, presentation.boards[pv.boardIndex], pv.view, tMs);
   if (camera) {
     const r = BUBBLE.size / 2;
     ctx.save();
@@ -69,7 +70,7 @@ export interface ExportOptions {
 /** Replays each Clip through the renderer, composites the Camera, mixes the Microphone and encodes one MP4. */
 export async function exportRecording(
   renderer: BoardRenderer,
-  board: Board,
+  presentation: Presentation,
   clips: ExportClip[],
   opts: ExportOptions,
 ): Promise<Blob> {
@@ -115,7 +116,7 @@ export async function exportRecording(
 
       for (let k = 0; k < frames; k++) {
         const cam = camera ? (await camera.next()).value : null;
-        composeFrame(ctx, renderer, board, clip.log, (k / FPS) * 1000, cam ? cam.canvas : null, opts.watermark);
+        composeFrame(ctx, renderer, presentation, clip.log, (k / FPS) * 1000, cam ? cam.canvas : null, opts.watermark);
         await opts.onFrame?.(canvas, frame);
         await video.add(offset + k / FPS, 1 / FPS);
         opts.onProgress?.(++frame, total);
