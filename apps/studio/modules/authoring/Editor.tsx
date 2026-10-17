@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BOARD_HEIGHT, BOARD_WIDTH, type Board, type Element, type ElementType, type Presentation } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 import { addElement, addFlowStep, createElement, deleteElement, deleteStep, hitTest, moveElement, moveStep } from "./board-edits";
-import { loadPresentation, newPresentation, savePresentation } from "./presentation-store";
+import { loadPresentation, newPresentation, savePresentation } from "../presentation/store";
 import styles from "./Editor.module.css";
 
 type Tool = "select" | ElementType;

@@ -1,6 +1,6 @@
 import { parsePresentation, type Presentation } from "@flowcam/domain";
 
-// The Presentation lives in OPFS as presentation.json; the recorder reads the same file.
+// The Presentation lives in OPFS as presentation.json, shared by Authoring, the recorder and export.
 const FILE = "presentation.json";
 
 export async function loadPresentation(): Promise<Presentation | null> {
