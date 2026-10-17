@@ -1,0 +1,40 @@
+.editor {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  grid-template-rows: auto auto 1fr;
+  gap: 8px;
+  padding: 8px;
+  font-family: system-ui, sans-serif;
+}
+.top {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.top h1 {
+  font-size: 1rem;
+  margin: 0;
+}
+.tools {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+}
+.tools button[aria-pressed="true"] {
+  background: #1c7ed6;
+  color: #fff;
+}
+.canvas {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #ccc;
+  touch-action: none;
+}
+.steps ol {
+  padding-left: 1.25rem;
+}
+.error {
+  grid-column: 1 / -1;
+  color: #c92a2a;
+}

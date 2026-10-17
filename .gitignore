@@ -28,3 +28,6 @@ Thumbs.db
 next-env.d.ts
 test-results/
 playwright-report/
+
+# Agent worktrees
+.claude/worktrees/

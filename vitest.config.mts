@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     // *.spec.ts files are Playwright tests.
     include: ["**/*.test.ts"],
-    exclude: ["**/node_modules/**", "**/.next/**"],
+    exclude: ["**/node_modules/**", "**/.next/**", ".claude/**"],
   },
 });
