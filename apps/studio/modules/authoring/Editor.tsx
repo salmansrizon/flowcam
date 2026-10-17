@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BOARD_HEIGHT, BOARD_WIDTH, stubRenderer, type Board, type Element, type ElementType, type Presentation } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, type Board, type Element, type ElementType, type Presentation } from "@flowcam/domain";
+import { boardRenderer } from "@flowcam/renderer";
 import { addElement, addFlowStep, createElement, deleteElement, deleteStep, hitTest, moveElement, moveStep } from "./board-edits";
 import { loadPresentation, newPresentation, savePresentation } from "./presentation-store";
 import styles from "./Editor.module.css";
@@ -79,7 +80,7 @@ export default function Editor() {
       pointer: null,
     };
     let frame = requestAnimationFrame(function draw(now) {
-      stubRenderer.render(ctx, shown, view, now);
+      boardRenderer.render(ctx, shown, view, now);
       const sel = elements.find((e) => e.id === selected);
       if (sel) {
         ctx.strokeStyle = "#1c7ed6";
