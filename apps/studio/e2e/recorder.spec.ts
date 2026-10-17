@@ -114,3 +114,25 @@ test("records three Clips with Steps, Ink and a Retake into OPFS", async ({ page
     expect(clip.audioBytes).toBeGreaterThan(0);
   }
 });
+
+test("a Clip's media reaches disk while it is still recording", async ({ page }) => {
+  await page.goto("/record");
+  await page.getByRole("button", { name: "Start" }).click();
+  await phase(page, "recording");
+  const clipId = (await page.locator("main").getAttribute("data-clip-id"))!;
+  await page.waitForTimeout(3000);
+
+  // Without stopping, read what is on disk: a crash now would leave these bytes.
+  const head = await page.evaluate(async (clipId) => {
+    const recordings = await (await navigator.storage.getDirectory()).getDirectoryHandle("recordings");
+    for await (const rec of recordings.values()) {
+      if (rec.kind !== "directory") continue;
+      const clips = await (rec as FileSystemDirectoryHandle).getDirectoryHandle("clips");
+      const file = await (await (await clips.getDirectoryHandle(clipId)).getFileHandle("media.mp4")).getFile();
+      return { size: file.size, box: new TextDecoder().decode(await file.slice(4, 8).arrayBuffer()) };
+    }
+    return null;
+  }, clipId);
+  expect(head?.box).toBe("ftyp");
+  expect(head!.size).toBeGreaterThan(10_000);
+});

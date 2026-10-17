@@ -7,6 +7,7 @@ import {
   Output,
   QUALITY_HIGH,
   StreamTarget,
+  type StreamTargetChunk,
 } from "mediabunny";
 
 export interface ClipCapture {
@@ -29,7 +30,7 @@ const AUDIO_CODECS = ["aac", "opus"] as const;
  */
 export async function startClipCapture(
   stream: MediaStream,
-  file: FileSystemWritableFileStream,
+  file: WritableStream<StreamTargetChunk>,
   onError: (error: unknown) => void,
 ): Promise<ClipCapture> {
   const [videoTrack] = stream.getVideoTracks();

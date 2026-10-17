@@ -1,5 +1,6 @@
 import { InvalidDataError, parseClipLog, parsePresentation, type ClipLog, type Presentation } from "@flowcam/domain";
 import { fixturePresentation } from "./fixture";
+import { openCrashSafeFile } from "./opfs-writer";
 
 // OPFS layout (S3 Authoring writes presentation.json; S5 export reads recordings/):
 //   presentation.json
@@ -77,9 +78,9 @@ export const writeClipLog = (recordingId: string, log: ClipLog) => writeJson(cli
 export const readClipMedia = async (recordingId: string, clipId: string): Promise<File> =>
   (await fileAt(clipDir(recordingId, clipId), "media.mp4")).getFile();
 
-/** A fresh, empty media.mp4 for a Clip, open for writing. */
-export const openClipMedia = async (recordingId: string, clipId: string) =>
-  (await fileAt(clipDir(recordingId, clipId), "media.mp4", true)).createWritable();
+/** A fresh, empty media.mp4 for a Clip, open for crash-safe writing. */
+export const openClipMedia = (recordingId: string, clipId: string) =>
+  openCrashSafeFile(clipDir(recordingId, clipId), "media.mp4");
 
 /** Removes a Clip's folder (media and log). */
 export async function deleteClip(recordingId: string, clipId: string) {

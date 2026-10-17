@@ -3,7 +3,7 @@
 import { BOARD_HEIGHT, BOARD_WIDTH, LOG_SCHEMA_VERSION, viewAt, type ClipLog, type LogEvent, type Presentation, type TimedPoint } from "@flowcam/domain";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { startClipCapture, type ClipCapture } from "./clip";
-import { renderer } from "./renderer";
+import { boardRenderer as renderer } from "@flowcam/renderer";
 import { clampStep, finishLog, POINTER_INTERVAL_MS, toBoardUnits, transition, type Command, type Phase } from "./session";
 import { deleteClip, loadPresentation, openClipMedia, writeClipLog, writeRecording, type RecordingManifest } from "./storage";
 
