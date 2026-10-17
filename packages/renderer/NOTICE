@@ -1,0 +1,18 @@
+Flowcam renderer
+================
+
+The drawing code in this package (src/shapes.ts, src/arrows.ts and parts of
+src/index.ts) is ported from Excaliflow.
+
+  Project:    Excaliflow
+  Repository: https://github.com/Shubhamsaboo/awesome-llm-apps
+  Path:       advanced_llm_apps/excaliflow/index.html
+  Commit:     40b16b66e5257c528059bb93ca9410b55d39278a
+  License:    Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+
+Changes: the code was converted to TypeScript, stripped of the editor (selection,
+hit testing, history, editing, sticky notes, lines, laser trail, node pulses),
+and made a pure function of (board, view, timeMs).
+
+Unless required by applicable law or agreed to in writing, the original software
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.

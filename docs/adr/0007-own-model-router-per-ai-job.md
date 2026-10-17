@@ -6,5 +6,5 @@ Each kind of AI Job has its own route on OpenRouter: a cheap default model on it
 
 - Every AI Job needs an automatic validity check, because escalation depends on it.
 - Titles, summary and chapters are generated in one request; fixed instructions sit at the start of each prompt so prompt caching applies; results are reused when the input is unchanged.
-- Image, Voiceover and Video Jobs use one fixed model each, always on the cheapest provider.
+- Image, Voiceover and Video Jobs do not escalate on a validity check: each Quality has one fixed model, plus a fallback list for outages, always on the cheapest provider (routes in PRODUCT.md §6).
 - Credit prices must be revisited when the models behind a route change.
