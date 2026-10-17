@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import m from "./DeepDives.module.css";
 
 const svg = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true, className: "size-5" } as const;
 
@@ -26,7 +27,12 @@ export function BigWord() {
     <section className="page-gutter py-16 sm:py-24">
       <div className="container-page">
         <h2 className="flex items-center justify-center gap-4 text-center">
-          <span className="text-6xl font-extrabold tracking-tight text-ink sm:text-8xl lg:text-9xl">Clearer</span>
+          <span className="relative text-6xl font-extrabold tracking-tight text-ink sm:text-8xl lg:text-9xl">
+            Clearer
+            <svg viewBox="0 0 300 20" preserveAspectRatio="none" className="absolute -bottom-2 left-0 h-3 w-full sm:h-4" aria-hidden>
+              <path d="M4 13 C 70 4, 150 18, 296 7" pathLength={1} fill="none" stroke="var(--marker)" strokeWidth="6" strokeLinecap="round" className={m.underline} />
+            </svg>
+          </span>
           <span className="flex flex-col text-left text-lg font-bold leading-tight text-ink-soft sm:text-2xl">
             <span>explanations,</span>
             <span>fewer takes.</span>

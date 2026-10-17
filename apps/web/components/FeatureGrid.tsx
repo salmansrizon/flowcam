@@ -16,7 +16,7 @@ export function FeatureGrid() {
         <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <li key={f.slug}>
-              <Link href={`/features/${f.slug}`} className="tile flex h-full flex-col gap-3 p-6 transition hover:-translate-y-0.5">
+              <Link href={`/features/${f.slug}`} className="tile tile-hover flex h-full flex-col gap-3 p-6">
                 <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${badge[f.release]}`}>{f.release}</span>
                 <h3 className="text-xl font-bold text-ink">{f.title}</h3>
                 <p className="text-ink-soft">{f.summary}</p>

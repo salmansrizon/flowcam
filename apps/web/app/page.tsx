@@ -9,6 +9,7 @@ import { Pricing } from "@/components/Pricing";
 import { FAQ } from "@/components/FAQ";
 import { ClosingCta } from "@/components/ClosingCta";
 import { Footer } from "@/components/Footer";
+import { Reveal } from "@/components/Reveal";
 
 export default function Home() {
   return (
@@ -16,14 +17,14 @@ export default function Home() {
       <Nav />
       <main>
         <Hero />
-        <BigWord />
-        <HowItWorks />
-        <FeatureDeepDives />
-        <FlowDiagram />
-        <FeatureGrid />
-        <Pricing />
-        <FAQ />
-        <ClosingCta />
+        <Reveal><BigWord /></Reveal>
+        <Reveal><HowItWorks /></Reveal>
+        <Reveal><FeatureDeepDives /></Reveal>
+        <Reveal><FlowDiagram /></Reveal>
+        <Reveal><FeatureGrid /></Reveal>
+        <Reveal><Pricing /></Reveal>
+        <Reveal><FAQ /></Reveal>
+        <Reveal><ClosingCta /></Reveal>
       </main>
       <Footer />
     </>

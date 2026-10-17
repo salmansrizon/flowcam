@@ -28,7 +28,7 @@ export function HowItWorks() {
         <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-5xl">Draw it, present it, share it</h2>
         <ol className="mt-10 grid gap-5 md:grid-cols-3">
           {steps.map((st, i) => (
-            <li key={st.title} className="tile p-6">
+            <li key={st.title} className="tile tile-hover p-6">
               <span className="grid size-9 place-items-center rounded-full bg-green text-sm font-bold text-white">{i + 1}</span>
               <div className="mt-5 rounded-2xl bg-sky-50 p-3">{st.art}</div>
               <h3 className="mt-5 text-xl font-bold text-ink">{st.title}</h3>

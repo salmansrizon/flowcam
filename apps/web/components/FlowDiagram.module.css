@@ -1,0 +1,4 @@
+.node { transition: transform 0.35s ease, filter 0.35s ease; transform-box: fill-box; transform-origin: center; }
+.node rect, .node circle { transition: fill 0.35s ease, stroke 0.35s ease; }
+.on { transform: scale(1.05); filter: drop-shadow(0 0 8px rgb(31 138 59 / 0.45)); }
+.comet { filter: drop-shadow(0 0 4px var(--marker)); }

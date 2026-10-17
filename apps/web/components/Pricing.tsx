@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PricingToggle } from "./PricingToggle";
+import m from "./DeepDives.module.css";
 
 const free = [
   "Works on your device, no account needed to record",
@@ -37,13 +38,13 @@ export function Pricing() {
         <p className="eyebrow">Pricing</p>
         <h2 className="mt-2 text-3xl font-extrabold text-ink sm:text-4xl">Start free. Upgrade when you share.</h2>
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
-          <div className="tile flex flex-col p-6 sm:p-8">
+          <div className="tile tile-hover flex flex-col p-6 sm:p-8">
             <h3 className="text-2xl font-bold text-ink">Free</h3>
             <p className="mt-4 text-5xl font-extrabold text-ink">$0</p>
             <List items={free} />
             <Link href="#waitlist" className="btn-ghost mt-8 justify-center">Join the waitlist</Link>
           </div>
-          <div className="tile relative flex flex-col border-2 !border-green p-6 sm:p-8">
+          <div className={`tile tile-hover relative flex flex-col border-2 !border-green p-6 sm:p-8 ${m.shine}`}>
             <span className="absolute -top-3 right-6 rounded-full bg-green px-3 py-1 text-xs font-bold text-white">Founding price</span>
             <h3 className="text-2xl font-bold text-ink">Pro</h3>
             <div className="mt-4"><PricingToggle /></div>

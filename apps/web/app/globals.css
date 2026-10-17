@@ -42,10 +42,10 @@
 
 html {
   scroll-behavior: smooth;
+  background: var(--sky-50);
 }
 
 body {
-  background: var(--sky-50);
   color: var(--ink);
   font-family: var(--font-urbanist), system-ui, sans-serif;
 }
@@ -70,8 +70,70 @@ h3 {
 .sky-wash {
   background:
     radial-gradient(60rem 30rem at 85% -10%, var(--sky-200), transparent 60%),
-    radial-gradient(50rem 28rem at -10% 20%, var(--sky-100), transparent 60%),
-    var(--sky-50);
+    radial-gradient(50rem 28rem at -10% 20%, var(--sky-100), transparent 60%);
+  /* translucent so the animated background shows through */
+  opacity: 1;
+}
+
+/* Animated background (see components/AnimatedBackground.tsx) */
+.bg-live {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(60rem 40rem at 80% 0%, rgb(169 212 242 / 0.35), transparent 70%),
+    radial-gradient(50rem 40rem at 0% 90%, rgb(26 167 184 / 0.12), transparent 70%);
+}
+.bg-live canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.bg-blob {
+  position: absolute;
+  width: 38rem;
+  height: 38rem;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+  will-change: transform;
+}
+.bg-blob-1 { top: -10rem; left: -8rem; background: var(--sky-300); animation: blob-a 32s ease-in-out infinite alternate; }
+.bg-blob-2 { top: 20%; right: -12rem; background: var(--flow); opacity: 0.18; animation: blob-b 38s ease-in-out infinite alternate; }
+.bg-blob-3 { bottom: -14rem; left: 25%; background: var(--sky-200); animation: blob-c 28s ease-in-out infinite alternate; }
+.bg-blob-4 { top: 55%; left: -10rem; width: 26rem; height: 26rem; background: var(--green); opacity: 0.07; animation: blob-b 34s ease-in-out infinite alternate-reverse; }
+@keyframes blob-a { to { transform: translate3d(14rem, 10rem, 0) scale(1.15); } }
+@keyframes blob-b { to { transform: translate3d(-12rem, 8rem, 0) scale(0.9); } }
+@keyframes blob-c { to { transform: translate3d(10rem, -9rem, 0) scale(1.2); } }
+@media (prefers-reduced-motion: reduce) {
+  .bg-blob { display: none; }
+}
+
+/* Scroll reveal: hidden only when JS has flagged html[data-reveal-ready] */
+.reveal {
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+html[data-reveal-ready] .reveal:not(.is-visible) {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+/* Hover lift for tiles (transform only) */
+.tile-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tile-hover:hover,
+  .tile-hover:focus-within {
+    transform: translateY(-4px);
+    box-shadow: 0 2px 4px rgb(14 27 43 / 0.05), 0 20px 40px -12px rgb(14 27 43 / 0.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .tile-hover { transition: none; }
+  html[data-reveal-ready] .reveal:not(.is-visible) { opacity: 1; transform: none; }
 }
 
 .tile {

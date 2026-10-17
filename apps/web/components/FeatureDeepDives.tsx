@@ -1,8 +1,11 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { features } from "@/lib/features";
+import { LiveBox } from "./LiveBox";
+import m from "./DeepDives.module.css";
 
 const hand = "hand text-ink-soft";
+const delay = (s: number) => ({ "--d": `${s}s` }) as CSSProperties;
 const Chip = ({ children, cls = "" }: { children: ReactNode; cls?: string }) => (
   <span className={`absolute rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-md ${cls}`}>{children}</span>
 );
@@ -10,79 +13,98 @@ const Chip = ({ children, cls = "" }: { children: ReactNode; cls?: string }) => 
 function StepsMock() {
   const rows = ["Title appears", "Client box draws on", "Arrow flows to server", "Focus on database"];
   return (
-    <div className="relative">
-      <div className="tile grid grid-cols-[1fr_9rem] gap-3 p-4">
+    <LiveBox className={`relative ${m.box}`}>
+      <div className="tile tile-hover grid grid-cols-[1fr_9rem] gap-3 p-4">
         <div className="rounded-2xl bg-sky-50 p-3" aria-hidden>
           <svg viewBox="0 0 200 110" fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" className="w-full">
             <rect x="8" y="36" width="56" height="34" rx="8" />
-            <rect x="136" y="36" width="56" height="34" rx="8" opacity=".35" />
+            <rect x="136" y="36" width="56" height="34" rx="8" className={m.revealBox} />
             <path d="M64 53h66" stroke="var(--flow)" className="flowing" />
           </svg>
         </div>
         <ol className="space-y-1.5 text-xs">
           {rows.map((r, i) => (
-            <li key={r} className={`rounded-lg px-2 py-1.5 font-semibold ${i === 2 ? "bg-green text-white" : "bg-sky-50 text-ink-soft"}`}>{i + 1}. {r}</li>
+            <li key={r} style={delay(i * 2)} className={`rounded-lg bg-sky-50 px-2 py-1.5 font-semibold text-ink-soft ${m.stepRow}`}>{i + 1}. {r}</li>
           ))}
         </ol>
       </div>
       <Chip cls="-bottom-3 left-4">Click: next Step</Chip>
-    </div>
+    </LiveBox>
   );
 }
 
 function PrompterMock() {
   return (
-    <div className="relative">
-      <div className="tile p-4">
+    <LiveBox className={`relative ${m.box}`}>
+      <div className="tile tile-hover p-4">
         <div className="relative rounded-2xl bg-sky-50 p-3" aria-hidden>
           <svg viewBox="0 0 220 100" fill="none" stroke="var(--ink)" strokeWidth="2.5" className="w-full">
             <rect x="10" y="20" width="60" height="32" rx="8" />
             <path d="M70 36h50" stroke="var(--flow)" className="flowing" />
           </svg>
-          <span className="absolute right-4 top-4 grid size-14 place-items-center rounded-full border-4 border-white bg-sky-300 shadow-md">
+          <span className={`absolute right-4 top-4 grid size-14 place-items-center rounded-full border-4 border-white bg-sky-300 shadow-md ${m.pulse}`}>
             <svg viewBox="0 0 24 24" className="size-7 text-ink" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="9" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></svg>
           </span>
         </div>
-        <div className="mt-3 rounded-xl bg-ink px-4 py-3 text-sm text-white/90">
-          <p className="opacity-50">Requests land on the load balancer,</p>
-          <p className="font-bold text-white">which picks a healthy server and</p>
-          <p className="opacity-50">forwards the request.</p>
+        {/* Script repeated twice so the upward scroll loops seamlessly */}
+        <div className="mt-3 h-[4.75rem] overflow-hidden rounded-xl bg-ink px-4 text-sm text-white/90" aria-hidden>
+          <div className={m.scroll}>
+            {[0, 1].map((k) => (
+              <div key={k} className="space-y-1 py-1.5">
+                <p className="opacity-50">Requests land on the load balancer,</p>
+                <p className="font-bold text-white">which picks a healthy server and</p>
+                <p className="opacity-50">forwards the request.</p>
+                <p className="opacity-50">The server reads from the cache first.</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <Chip cls="-top-3 right-4">Not in the video</Chip>
-    </div>
+    </LiveBox>
   );
 }
 
 function FixMock() {
   return (
-    <div className="relative">
-      <div className="tile grid gap-3 p-4 sm:grid-cols-2">
-        {[["Before", "Recieve", "text-muted line-through"], ["After", "Receive", "text-ink"]].map(([l, w, c]) => (
-          <div key={l} className="rounded-2xl bg-sky-50 p-3 text-center">
-            <p className="eyebrow !text-muted">{l}</p>
-            <div className="mx-auto mt-2 rounded-xl border-2 border-ink bg-white px-3 py-4"><span className={`${hand} text-lg ${c}`}>{w}</span></div>
+    <LiveBox className={`relative ${m.box}`}>
+      <div className="tile tile-hover grid gap-3 p-4 sm:grid-cols-2">
+        <div className="rounded-2xl bg-sky-50 p-3 text-center">
+          <p className="eyebrow !text-muted">Before</p>
+          <div className="mx-auto mt-2 rounded-xl border-2 border-ink bg-white px-3 py-4">
+            <span className={`${hand} text-lg text-muted line-through decoration-2 ${m.strike}`}>Recieve</span>
           </div>
-        ))}
+        </div>
+        <div className="rounded-2xl bg-sky-50 p-3 text-center">
+          <p className="eyebrow !text-muted">After</p>
+          <div className="mx-auto mt-2 rounded-xl border-2 border-ink bg-white px-3 py-4">
+            <span className={`${hand} inline-block overflow-hidden whitespace-nowrap align-bottom text-lg text-ink ${m.typed}`} style={{ width: "7ch" }}>Receive</span>
+          </div>
+        </div>
       </div>
-      <Chip cls="-bottom-3 right-4 !bg-green !text-white !border-green">Re-export</Chip>
-    </div>
+      <Chip cls={`-bottom-3 right-4 !bg-green !text-white !border-green ${m.pop}`}>Re-export ✓</Chip>
+    </LiveBox>
   );
 }
 
 function ShareMock() {
   return (
-    <div className="relative">
-      <div className="tile p-4">
-        <div className="grid aspect-video place-items-center rounded-2xl bg-sky-100" aria-hidden>
+    <LiveBox className={`relative ${m.box}`}>
+      <div className="tile tile-hover p-4">
+        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-2xl bg-sky-100" aria-hidden>
           <svg viewBox="0 0 24 24" className="size-10 text-ink" fill="currentColor"><path d="m9 6 10 6-10 6z" /></svg>
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-200">
+            <span className={`block h-full origin-left bg-green ${m.progress}`} />
+          </span>
         </div>
         <ul className="mt-3 space-y-1 text-xs font-semibold text-ink-soft">
-          {["0:00 The problem", "0:42 The Board", "1:30 Walkthrough"].map((c) => <li key={c} className="rounded-lg bg-sky-50 px-2 py-1">{c}</li>)}
+          {["0:00 The problem", "0:42 The Board", "1:30 Walkthrough"].map((c, i) => (
+            <li key={c} style={delay(i * 3)} className={`rounded-lg bg-sky-50 px-2 py-1 ${m.chapter}`}>{c}</li>
+          ))}
         </ul>
       </div>
-      <Chip cls="-top-3 right-4 !bg-green !text-white !border-green">Remix</Chip>
-    </div>
+      <Chip cls={`-top-3 right-4 !bg-green !text-white !border-green ${m.nudge}`}>Remix</Chip>
+    </LiveBox>
   );
 }
 
