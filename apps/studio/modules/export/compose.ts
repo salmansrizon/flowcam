@@ -104,8 +104,8 @@ export async function exportRecording(
       const input = inputs[i];
       const seconds = clip.log.durationMs / 1000;
       const frames = Math.ceil(seconds * FPS);
-      // Log time 0 is the Clip's first media sample (see modules/recording).
-      const mediaStart = await input.getFirstTimestamp();
+      // Log time 0 is media time 0: the recorder's first media sample (see modules/recording/clip.ts).
+      const mediaStart = 0;
       const cameraTrack = await input.getPrimaryVideoTrack();
       const camera = cameraTrack
         ? new CanvasSink(cameraTrack, { width: BUBBLE.size, height: BUBBLE.size, fit: "cover" }).canvasesAtTimestamps(
