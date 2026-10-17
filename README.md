@@ -48,9 +48,15 @@ docs/           Spec, glossary, ADRs, open items
 
 | Service | Project | Notes |
 |---|---|---|
-| GitHub | `salmansrizon/flowcam` | Public, no open-source licence (all rights reserved; see ADR 0013) |
-| Supabase | `flowcam`, Singapore (`ap-southeast-1`) | Postgres, Auth, Storage |
-| Vercel | `flowcam` | Functions pinned to Singapore (`sin1`) next to the database |
+| GitHub | [`salmansrizon/flowcam`](https://github.com/salmansrizon/flowcam) | Created. Public, no open-source licence (all rights reserved; see ADR 0013) |
+| Vercel | `flowcam` (`prj_eDQNeNk7BY7wMbIu5WrgNpnKnwlW`) in team `salmansrizons-projects` | Created: Next.js, root directory `apps/web`, functions in Singapore (`sin1`). **Not yet linked to GitHub** |
+| Supabase | `flowcam`, Singapore (`ap-southeast-1`), org `salmansrizon's Org` | **Not yet created**: the free plan's two-project limit is full |
+
+### Remaining setup steps
+
+1. **Supabase:** pause one of your other free projects in the Supabase dashboard (paused projects keep their data), then create `flowcam` in Singapore. Move to Supabase Pro before the first paying user (OPEN-ITEMS item 3).
+2. **Vercel ↔ GitHub:** in Vercel, open Account Settings › Authentication and add a GitHub Login Connection, then connect `salmansrizon/flowcam` to the `flowcam` project (Settings › Git). Pushes to `main` will then deploy once `apps/web` exists.
+3. **Environment variables:** after Supabase exists, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to the Vercel project; keep the service-role key and `OPENROUTER_API_KEY` as sensitive variables only.
 
 Secrets never go in this repo: keep them in Vercel environment variables and a local `.env` (git-ignored).
 
