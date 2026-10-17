@@ -67,7 +67,7 @@ docs/           Spec, glossary, ADRs, open items
 
 1. **Supabase:** pause one of your other free projects in the Supabase dashboard (paused projects keep their data), then create `flowcam` in Singapore. Move to Supabase Pro before the first paying user (OPEN-ITEMS item 3).
 2. **Vercel ↔ GitHub:** in Vercel, open Account Settings › Authentication and add a GitHub Login Connection, then connect `salmansrizon/flowcam` to the `flowcam` project (Settings › Git). Pushes to `main` will then deploy once `apps/web` exists.
-3. **Environment variables:** after Supabase exists, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to the Vercel project; keep the service-role key and `OPENROUTER_API_KEY` as sensitive variables only.
+3. **Database and environment variables:** after Supabase exists, apply `supabase/migrations/20261017000000_waitlist.sql`, then add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (sensitive) to the Vercel project for the waitlist. Later product keys such as `OPENROUTER_API_KEY` are sensitive variables too.
 
 Secrets never go in this repo: keep them in Vercel environment variables and a local `.env` (git-ignored).
 
