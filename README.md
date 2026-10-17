@@ -2,7 +2,18 @@
 
 Flowcam is a studio for explainer creators and online teachers: build a hand-drawn Presentation, present it step by step while your camera, voice and screen are recorded, and polish the result into a professional video. It runs on the web first, with macOS and Windows apps to follow.
 
-**Status:** design agreed, no code yet. Everything below is the plan to build from.
+**Status:** design agreed. The first code is the pre-launch website in `apps/web`: a landing page with a launch waitlist and one shareable page per feature (`/features/<slug>`). The product itself is not built yet.
+
+### Run the launch site
+
+```sh
+cd apps/web
+cp .env.example .env.local   # fill SUPABASE_URL and SUPABASE_SECRET_KEY
+npm install
+npm run dev                   # http://localhost:3000
+```
+
+The waitlist saves to the `waitlist` table created by `supabase/migrations/20261017000000_waitlist.sql`; without the two environment variables the form shows "The waitlist isn't open yet". Feature copy lives in `apps/web/lib/features.ts`. To email everyone at launch, export rows where `notified_at` is null, send the launch email, then set `notified_at`.
 
 ## Start here
 
@@ -32,7 +43,7 @@ Flowcam is a studio for explainer creators and online teachers: build a hand-dra
 
 ## Planned layout
 
-Nothing here exists yet; this is the agreed shape for the monorepo.
+Only `apps/web` (the launch site) and `supabase/` exist so far; the rest is the agreed shape.
 
 ```text
 apps/web        Next.js web app and API (Vercel)

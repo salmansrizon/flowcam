@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+/* Layout concept: an airy sky-blue page with white rounded tiles floating on it;
+   ink-dark bold headlines, one green action colour, hand-drawn accents only in
+   illustrations and small annotations. Single light look by choice. */
+:root {
+  color-scheme: light;
+  --sky-50: #f3f9fe;
+  --sky-100: #e4f2fc;
+  --sky-200: #cfe7f8;
+  --sky-300: #a9d4f2;
+  --ink: #0e1b2b;
+  --ink-soft: #3d4f63;
+  --muted: #64768a;
+  --line: #dbe9f5;
+  --tile: #ffffff;
+  --green: #1f8a3b; /* white text on it passes AA */
+  --green-hover: #187031;
+  --green-soft: #e3f5e7;
+  --flow: #1aa7b8; /* animated arrows and diagram accents */
+  --marker: #f2a541; /* hand-drawn highlight */
+}
+
+@theme inline {
+  --color-sky-50: var(--sky-50);
+  --color-sky-100: var(--sky-100);
+  --color-sky-200: var(--sky-200);
+  --color-sky-300: var(--sky-300);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-tile: var(--tile);
+  --color-green: var(--green);
+  --color-green-hover: var(--green-hover);
+  --color-green-soft: var(--green-soft);
+  --color-flow: var(--flow);
+  --color-marker: var(--marker);
+  --font-sans: var(--font-urbanist);
+  --font-hand: var(--font-kalam);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--sky-50);
+  color: var(--ink);
+  font-family: var(--font-urbanist), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
+/* Shared building blocks used by every section */
+.page-gutter {
+  padding-inline: max(1rem, 4vw);
+}
+
+.container-page {
+  max-width: 72rem;
+  margin-inline: auto;
+}
+
+.sky-wash {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, var(--sky-200), transparent 60%),
+    radial-gradient(50rem 28rem at -10% 20%, var(--sky-100), transparent 60%),
+    var(--sky-50);
+}
+
+.tile {
+  background: var(--tile);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  box-shadow: 0 1px 2px rgb(14 27 43 / 0.04), 0 12px 32px -12px rgb(14 27 43 / 0.12);
+}
+
+.btn-green {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.8rem 1.5rem;
+  transition: background 150ms ease;
+}
+.btn-green:hover {
+  background: var(--green-hover);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--tile);
+  color: var(--ink);
+  font-weight: 600;
+  padding: 0.8rem 1.5rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: var(--tile);
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.9rem;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.hand {
+  font-family: var(--font-kalam), "Comic Sans MS", cursive;
+}
+
+:focus-visible {
+  outline: 3px solid var(--flow);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Hand-drawn line animations used by illustrations: add .draw to an SVG path
+   with pathLength="1"; set --delay inline to sequence them. */
+@keyframes draw-on {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes flow-dash {
+  to { stroke-dashoffset: -24; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw-on 0.9s var(--delay, 0s) ease-out forwards;
+  }
+  .flowing {
+    stroke-dasharray: 6 6;
+    animation: flow-dash 1s linear infinite;
+  }
+  .rise {
+    animation: rise-in 0.6s var(--delay, 0s) ease-out both;
+  }
+}
