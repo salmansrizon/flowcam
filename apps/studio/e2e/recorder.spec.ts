@@ -1,7 +1,54 @@
 import { expect, test, type Page } from "@playwright/test";
-import { parseClipLog } from "@flowcam/domain";
+import { parseClipLog, type Element, type Presentation } from "@flowcam/domain";
 
 const phase = (page: Page, name: string) => expect(page.locator(`main[data-phase="${name}"]`)).toBeVisible({ timeout: 15_000 });
+
+const box = (id: string, x: number): Element => ({
+  id,
+  type: "rectangle",
+  x,
+  y: 200,
+  width: 300,
+  height: 200,
+  strokeColor: "#1e1e1e",
+  fillStyle: "none",
+  strokeWidth: 3,
+  strokeStyle: "solid",
+  roughness: 1,
+  fontFamily: "hand",
+  fontSize: 32,
+  text: "",
+  seed: 7,
+});
+
+const twoBoards: Presentation = {
+  version: 1,
+  id: "two-boards",
+  title: "Two Boards",
+  themeId: "paper",
+  boards: [
+    {
+      id: "b1",
+      elements: [box("a", 200), box("b", 700)],
+      steps: [
+        { id: "s1", kind: "reveal", elementIds: ["a"], script: "Welcome to the first Board." },
+        { id: "s2", kind: "reveal", elementIds: ["b"] },
+      ],
+    },
+    {
+      id: "b2",
+      elements: [box("c", 200), box("d", 700)],
+      steps: [
+        { id: "s3", kind: "reveal", elementIds: ["c"], script: "Now the server answers." },
+        { id: "s4", kind: "reveal", elementIds: ["d"], layout: "side-by-side", script: "Side by side now.\nWith a second line." },
+      ],
+    },
+  ],
+};
+
+/** RGB of one pixel of the Presenter View's Board canvas, in canvas (Board) units. */
+const pixel = (page: Page, x: number, y: number) =>
+  page.getByLabel("Board", { exact: true }).evaluate((c: HTMLCanvasElement, [x, y]) => [...c.getContext("2d")!.getImageData(x, y, 1, 1).data.slice(0, 3)], [x, y]);
 
 test("records three Clips with Steps, Ink and a Retake into OPFS", async ({ page }) => {
   test.setTimeout(60_000);
@@ -89,7 +136,9 @@ test("records three Clips with Steps, Ink and a Retake into OPFS", async ({ page
     return { manifest, dirs, clips };
   }, recordingId);
 
-  expect(saved.manifest).toMatchObject({ version: 1, id: recordingId, presentationId: "fixture", boardId: "board_fixture" });
+  expect(saved.manifest).toMatchObject({ version: 1, id: recordingId, presentationId: "fixture" });
+  // Each Clip's log says which Board it began on, so the Recording names no Board.
+  expect(saved.manifest).not.toHaveProperty("boardId");
   expect(saved.manifest.clips).toHaveLength(3);
   // The retaken Clip's files are gone: only the three listed Clips are on disk.
   expect(saved.dirs.sort()).toEqual([...saved.manifest.clips].sort());
@@ -135,4 +184,73 @@ test("a Clip's media reaches disk while it is still recording", async ({ page })
   }, clipId);
   expect(head?.box).toBe("ftyp");
   expect(head!.size).toBeGreaterThan(10_000);
+});
+
+test("moves between Boards with the Teleprompter and the Step's Layout in the Presenter View", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("/record");
+  await page.evaluate(async (json) => {
+    const out = await (await (await navigator.storage.getDirectory()).getFileHandle("presentation.json", { create: true })).createWritable();
+    await out.write(json);
+    await out.close();
+  }, JSON.stringify(twoBoards));
+  await page.reload();
+  await expect(page.getByText("Presenting “Two Boards”.")).toBeVisible();
+  await page.getByRole("button", { name: "Start" }).click();
+  await phase(page, "recording");
+
+  // Clip 1: both Steps of Board 1, past its end into Board 2, then into the side-by-side Step.
+  const teleprompter = page.getByLabel("Teleprompter");
+  const place = (text: string) => expect(page.getByText(text)).toBeVisible();
+  await expect(teleprompter).toHaveText("No Script for this Step");
+  await page.keyboard.press("ArrowRight");
+  await expect(teleprompter).toHaveText("Welcome to the first Board.");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await place("Board 2 of 2 · Step 0 of 2");
+  await expect(page.getByText("Next: Now the server answers.")).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(teleprompter).toHaveText("Now the server answers.");
+  await expect(page.getByText("Next: Side by side now.")).toBeVisible();
+  // Camera Bubble Layout: the top-left corner is the white Board.
+  await expect.poll(() => pixel(page, 10, 10)).toEqual([255, 255, 255]);
+  await page.keyboard.press("ArrowRight");
+  // Side by side: the same corner is the Layout's dark background.
+  await expect.poll(() => pixel(page, 10, 10)).toEqual([0x16, 0x18, 0x1b]);
+  await expect(teleprompter).toContainText("With a second line.");
+  if (process.env.FLOWCAM_PRESENTER_SCREENSHOT) await page.screenshot({ path: process.env.FLOWCAM_PRESENTER_SCREENSHOT });
+  await page.waitForTimeout(500);
+  await page.keyboard.press(" ");
+  await phase(page, "paused");
+
+  // Clip 2 begins on Board 2 and goes back to Board 1, whose Steps are still shown.
+  await page.keyboard.press(" ");
+  await phase(page, "recording");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await place("Board 1 of 2 · Step 2 of 2");
+  await expect.poll(() => pixel(page, 10, 10)).toEqual([255, 255, 255]);
+  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: "Stop" }).click();
+  await phase(page, "done");
+  const recordingId = (await page.getByTestId("recording-id").textContent())!;
+
+  const raw = await page.evaluate(async (id) => {
+    const rec = await (await (await navigator.storage.getDirectory()).getDirectoryHandle("recordings")).getDirectoryHandle(id);
+    const read = async (dir: FileSystemDirectoryHandle, name: string) => JSON.parse(await (await (await dir.getFileHandle(name)).getFile()).text());
+    const manifest = await read(rec, "recording.json");
+    const clips = await rec.getDirectoryHandle("clips");
+    return { manifest, logs: await Promise.all((manifest.clips as string[]).map(async (c) => read(await clips.getDirectoryHandle(c), "log.json"))) };
+  }, recordingId);
+
+  expect(raw.manifest).toMatchObject({ presentationId: "two-boards" });
+  const logs = raw.logs.map(parseClipLog);
+  const moves = (i: number) => logs[i].events.flatMap((e) => (e.type === "step" || e.type === "board" ? [`${e.type} ${e.index}`] : []));
+  expect(logs.map((l) => [l.startBoard, l.startStep])).toEqual([
+    [0, 0],
+    [1, 2],
+  ]);
+  expect(moves(0)).toEqual(["step 1", "step 2", "board 1", "step 1", "step 2"]);
+  expect(moves(1)).toEqual(["step 1", "step 0", "board 0"]);
 });

@@ -35,6 +35,8 @@ export function addElement(board: Board, el: Element): Board {
 export function deleteElement(board: Board, id: string): Board {
   const steps = board.steps.flatMap((s): Step[] => {
     if (s.kind === "flow") return s.arrowId === id ? [] : [s];
+    if (s.kind === "morph") return s.elementId === id ? [] : [s];
+    if (s.kind === "focus") return [s];
     const elementIds = s.elementIds.filter((e) => e !== id);
     return elementIds.length ? [{ ...s, elementIds }] : [];
   });

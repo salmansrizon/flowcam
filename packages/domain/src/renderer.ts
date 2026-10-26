@@ -1,14 +1,20 @@
-import { BOARD_HEIGHT, BOARD_WIDTH, type Board } from "./model";
+import { BOARD_HEIGHT, BOARD_WIDTH, type Board, type Theme } from "./model";
 import type { BoardView } from "./log";
 
 export type Canvas2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/** What a render needs besides the Board: the Presentation's Theme and decoded Images by `imageId`. */
+export interface RenderEnv {
+  theme: Theme;
+  images: ReadonlyMap<string, CanvasImageSource>;
+}
 
 /**
  * Draws a Board in Board units (BOARD_WIDTH x BOARD_HEIGHT); the caller sets the context's transform.
  * Output must depend only on the arguments: no wall clock, no unseeded randomness (ADR 0002).
  */
 export interface BoardRenderer {
-  render(ctx: Canvas2D, board: Board, view: BoardView, timeMs: number): void;
+  render(ctx: Canvas2D, board: Board, view: BoardView, timeMs: number, env?: RenderEnv): void;
 }
 
 /** Plain boxes and lines, so the recorder and export can be built before the real renderer lands. */

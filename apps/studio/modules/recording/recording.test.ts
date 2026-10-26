@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { InvalidDataError, parseClipLog, parsePresentation, type LogEvent } from "@flowcam/domain";
+import {
+  InvalidDataError,
+  LOG_SCHEMA_VERSION,
+  parseClipLog,
+  parsePresentation,
+  presentationViewAt,
+  type ClipLog,
+  type LogEvent,
+  type Presentation,
+} from "@flowcam/domain";
 import { fixturePresentation } from "./fixture";
-import { clampStep, finishLog, toBoardUnits, transition } from "./session";
+import { boardArea, finishLog, navigate, toBoardUnits, transition, upcoming } from "./session";
 import { parseRecording } from "./storage";
 
 describe("Clip state machine", () => {
@@ -27,12 +36,84 @@ describe("Clip state machine", () => {
   });
 });
 
-describe("clampStep", () => {
-  it("keeps the Step index within 0..steps.length", () => {
-    expect(clampStep(-1, 4)).toBe(0);
-    expect(clampStep(2, 4)).toBe(2);
-    expect(clampStep(5, 4)).toBe(4);
-    expect(clampStep(1, 0)).toBe(0);
+// Three Boards: two Steps, one Step, two Steps with Scripts on the last Board.
+const [b1, b2] = fixturePresentation.boards[0].steps;
+const three: Presentation = {
+  ...fixturePresentation,
+  boards: [
+    { id: "b0", elements: [], steps: [b1, b2] },
+    { id: "b1", elements: [], steps: [b1] },
+    { id: "b2", elements: [], steps: [{ ...b1, script: "First line\nsecond line" }, { ...b2, script: "Last" }] },
+  ],
+};
+
+/** Presses → (1) or ← (-1) in order from `start`, logging what navigate returns; returns the log. */
+function press(keys: (1 | -1)[], start = { board: 0, step: 0 }): ClipLog {
+  const log: ClipLog = { version: LOG_SCHEMA_VERSION, clipId: "c", startBoard: start.board, startStep: start.step, durationMs: 0, events: [] };
+  keys.forEach((dir, t) => {
+    const move = navigate(three, presentationViewAt(three, log, Infinity), dir);
+    if (move) log.events.push({ ...move, t });
+  });
+  return log;
+}
+const at = (log: ClipLog) => {
+  const pv = presentationViewAt(three, log, Infinity);
+  return [pv.boardIndex, pv.view.stepIndex];
+};
+
+describe("navigate", () => {
+  it("→ past a Board's last Step moves to the next Board with no Steps shown", () => {
+    const log = press([1, 1, 1]);
+    expect(log.events).toEqual([
+      { type: "step", index: 1, t: 0 },
+      { type: "step", index: 2, t: 1 },
+      { type: "board", index: 1, t: 2 },
+    ]);
+    expect(at(log)).toEqual([1, 0]);
+  });
+
+  it("← at Step 0 returns to the previous Board with its shown Steps kept", () => {
+    const log = press([1, 1, 1, 1, -1, -1]);
+    expect(log.events.at(-1)).toMatchObject({ type: "board", index: 0 });
+    expect(at(log)).toEqual([0, 2]);
+    // ← again hides that Board's Steps one by one.
+    expect(at(press([1, 1, 1, 1, -1, -1, -1]))).toEqual([0, 1]);
+  });
+
+  it("stops at the first and last Board", () => {
+    expect(press([-1, -1])).toMatchObject({ events: [] });
+    const end = press([1, 1], { board: 2, step: 0 });
+    expect(at(end)).toEqual([2, 2]);
+    expect(navigate(three, presentationViewAt(three, end, Infinity), 1)).toBeNull();
+  });
+
+  it("a Clip started mid-way goes back to a fully shown earlier Board", () => {
+    expect(at(press([-1], { board: 1, step: 0 }))).toEqual([0, 2]);
+  });
+});
+
+describe("upcoming (Teleprompter next Step)", () => {
+  it("is the next Step on this Board", () => {
+    const next = upcoming(three, press([], { board: 2, step: 0 }))!;
+    expect([next.view.boardIndex, next.view.view.stepIndex]).toEqual([2, 1]);
+    expect(next.step?.script).toBe("First line\nsecond line");
+  });
+
+  it("crosses into the next Board after a Board's last Step", () => {
+    const next = upcoming(three, press([1, 1]))!;
+    expect([next.view.boardIndex, next.view.view.stepIndex]).toEqual([1, 0]);
+    expect(next.step).toBeNull();
+  });
+
+  it("is null at the end of the Presentation", () => {
+    expect(upcoming(three, press([], { board: 2, step: 2 }))).toBeNull();
+  });
+});
+
+describe("boardArea", () => {
+  it("is the whole frame except side by side, where the Board sits left as in the export", () => {
+    expect(boardArea("bubble")).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+    expect(boardArea("side-by-side")).toMatchObject({ x: 40, width: 1220 });
   });
 });
 
@@ -50,9 +131,9 @@ describe("finishLog", () => {
   ];
 
   it("puts t=0 on the first media sample and keeps events sorted", () => {
-    const log = finishLog({ clipId: "c", boardId: "b", startStep: 2, events }, 1000, 3500);
+    const log = finishLog({ clipId: "c", startBoard: 0, startStep: 2, events }, 1000, 3500);
     expect(parseClipLog(log)).toBe(log);
-    expect(log).toMatchObject({ version: 1, clipId: "c", boardId: "b", startStep: 2, durationMs: 2500 });
+    expect(log).toMatchObject({ version: 2, clipId: "c", startBoard: 0, startStep: 2, durationMs: 2500 });
     expect(log.events).toEqual([
       { t: 0, type: "pointer", x: 1, y: 2 },
       { t: 100, type: "ink", id: "a", points: [[0, 0, 100], [5, 5, 300]] },
@@ -62,16 +143,16 @@ describe("finishLog", () => {
 });
 
 describe("parseRecording", () => {
-  const good = { version: 1, id: "r", presentationId: "p", boardId: "b", createdAt: "2026-10-17T10:00:00.000Z", clips: ["c1", "c2"] };
+  const good = { version: 1, id: "r", presentationId: "p", createdAt: "2026-10-17T10:00:00.000Z", clips: ["c1", "c2"] };
 
-  it("accepts a valid recording.json", () => {
+  it("accepts a valid recording.json, which has no boardId (each Clip's log has startBoard)", () => {
     expect(parseRecording(JSON.parse(JSON.stringify(good)))).toEqual(good);
   });
 
   it.each([
     ["not an object", null],
     ["wrong version", { ...good, version: 2 }],
-    ["missing boardId", { ...good, boardId: undefined }],
+    ["missing presentationId", { ...good, presentationId: undefined }],
     ["bad date", { ...good, createdAt: "yesterday" }],
     ["non-string clip", { ...good, clips: ["c1", 2] }],
     ["duplicate clip", { ...good, clips: ["c1", "c1"] }],

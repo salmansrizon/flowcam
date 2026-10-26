@@ -1,6 +1,6 @@
 // Ported from Excaliflow (Apache-2.0), see ../NOTICE: advanced_llm_apps/excaliflow/index.html @ 40b16b6.
 // Hand-drawn shape paths, hachure fill and font helpers.
-import type { Canvas2D, Element } from "@flowcam/domain";
+import type { Canvas2D, Element, Theme } from "@flowcam/domain";
 
 /**
  * Fonts the caller must load before rendering (the renderer only names them):
@@ -27,23 +27,36 @@ function getFontCss(family: string, fontSize: number): string {
   return `${key === "hand" ? 400 : 500} ${Number(fontSize) || 16}px ${FONT_MAP[key]}`;
 }
 
-const SEMANTIC_COLORS = [
-  { hex: "#171717", lightFill: "rgba(23, 23, 23, 0.07)" },
-  { hex: "#0070f3", lightFill: "rgba(0, 112, 243, 0.12)" },
-  { hex: "#7928ca", lightFill: "rgba(121, 40, 202, 0.12)" },
-  { hex: "#10b981", lightFill: "rgba(16, 185, 129, 0.13)" },
-  { hex: "#f59e0b", lightFill: "rgba(245, 158, 11, 0.15)" },
-  { hex: "#ef4444", lightFill: "rgba(239, 68, 68, 0.13)" },
-  { hex: "#06b6d4", lightFill: "rgba(6, 182, 212, 0.14)" },
-];
-
-/** Colours outside Excaliflow's palette fall back to its first entry, as upstream does. */
-function colorEntry(hex: string) {
-  const norm = (hex || "#171717").toLowerCase();
-  return SEMANTIC_COLORS.find((c) => c.hex === norm) ?? SEMANTIC_COLORS[0];
+/** Theme plus whether its background is dark (Excaliflow's isDark switch, generalised from `#000000` to any dark colour). */
+export interface Look {
+  theme: Theme;
+  dark: boolean;
 }
-export const resolveStrokeColor = (hex: string) => colorEntry(hex).hex;
-const resolveFillTint = (hex: string) => colorEntry(hex).lightFill;
+
+const full = (c: string) => (c.length === 4 ? "#" + [...c.slice(1)].map((x) => x + x).join("") : c);
+
+export function lookOf(theme: Theme): Look {
+  const m = /^#([0-9a-f]{6})$/i.exec(full(theme.background));
+  const n = m ? parseInt(m[1], 16) : 0xffffff;
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return { theme, dark: lum < 0.5 };
+}
+
+/** The M1 default stroke (#171717) means "the Theme's stroke"; any other colour is drawn exactly as given. */
+export const resolveStrokeColor = (hex: string, look: Look) => ((hex || "#171717").toLowerCase() === "#171717" ? look.theme.stroke : hex);
+
+function rgba(color: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(full(color));
+  if (!m) return `rgba(128, 128, 128, ${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/** Excaliflow's resolveFillTint, with the 7-colour table replaced by a tint of the Element's own colour. */
+export function resolveFillTint(hex: string, look: Look, isSticky = false): string {
+  if (isSticky && (hex || "#171717").toLowerCase() === "#171717") return look.dark ? "rgba(251, 191, 36, 0.20)" : "#fef3c7";
+  return rgba(resolveStrokeColor(hex, look), look.dark ? 0.2 : 0.13);
+}
 
 export function mulberry32(seed: number): () => number {
   let a = (Number(seed) || 1) >>> 0;
@@ -195,7 +208,7 @@ function clipSegmentToShape(el: Element, x1: number, y1: number, x2: number, y2:
     }
   }
 
-  const r = Math.max(0, Math.min(14, w / 4, h / 4) - ins * 0.5);
+  const r = Math.max(0, (el.type === "sticky" ? 4 : Math.min(14, w / 4, h / 4)) - ins * 0.5);
   if (r > 0.5) {
     const clipCornerCircle = (tVal: number, isStart: boolean): number | null => {
       const px = x1 + tVal * dx;
@@ -378,9 +391,10 @@ function shapePaths(el: Element) {
     roughEdge(strokePath, bottom[0], bottom[1], left[0], left[1], rng, roughness);
     roughEdge(strokePath, left[0], left[1], top[0], top[1], rng, roughness);
   } else {
-    const r = Math.min(14, w / 4, h / 4);
+    const sticky = el.type === "sticky";
+    const r = sticky ? 4 : Math.min(14, w / 4, h / 4);
     cleanRoundRect(fillPath, x, y, w, h, r);
-    roughRoundRect(strokePath, x, y, w, h, r, rng, roughness);
+    roughRoundRect(strokePath, x, y, w, h, r, rng, sticky ? roughness * 0.65 : roughness);
   }
 
   if (el.fillStyle === "hachure") {
@@ -422,11 +436,26 @@ export function applyDashStyle(ctx: Canvas2D, strokeStyle: string, strokeWidth: 
   else ctx.setLineDash([]);
 }
 
-/** Draws a rectangle, ellipse, diamond or freedraw Element (text and arrows are separate passes). */
-export function drawStaticElement(ctx: Canvas2D, el: Element) {
-  if (el.type === "arrow" || el.type === "text") return;
-  const strokeColor = resolveStrokeColor(el.strokeColor);
+/** Rough length of the hand-drawn outline, used to size the draw-on dash. */
+function outlineLength(el: Element): number {
+  const w = Math.max(2, el.width), h = Math.max(2, el.height);
+  const passes = (el.roughness ?? 0.85) > 1.2 ? 3 : (el.roughness ?? 0.85) > 0.001 ? 2 : 1;
+  const per = el.type === "ellipse" ? Math.PI * (1.5 * (w / 2 + h / 2) - Math.sqrt((w / 2) * (h / 2))) : el.type === "diamond" ? 2 * Math.hypot(w, h) : 2 * (w + h);
+  return per * passes * 1.1;
+}
+
+/** Strokes only the first `progress` of a path by dash offset (the draw-on effect). */
+export function applyDrawOn(ctx: Canvas2D, length: number, progress: number) {
+  ctx.setLineDash([length, length]);
+  ctx.lineDashOffset = length * (1 - progress);
+}
+
+/** Draws a rectangle, ellipse, diamond, sticky or freedraw Element (text, images and arrows are separate passes). `progress` < 1 draws it on. */
+export function drawStaticElement(ctx: Canvas2D, el: Element, look: Look, progress = 1) {
+  if (el.type === "arrow" || el.type === "text" || el.type === "image") return;
+  const strokeColor = resolveStrokeColor(el.strokeColor, look);
   const sw = Number(el.strokeWidth) || 2.2;
+  const sticky = el.type === "sticky";
 
   ctx.save();
   ctx.lineCap = "round";
@@ -438,6 +467,11 @@ export function drawStaticElement(ctx: Canvas2D, el: Element) {
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = sw;
       applyDashStyle(ctx, el.strokeStyle, sw);
+      if (progress < 1) {
+        let len = 0;
+        for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        applyDrawOn(ctx, len * 1.05 + 1, progress);
+      }
       ctx.beginPath();
       ctx.moveTo(el.x + pts[0][0], el.y + pts[0][1]);
       for (let i = 1; i < pts.length; i++) {
@@ -455,15 +489,25 @@ export function drawStaticElement(ctx: Canvas2D, el: Element) {
 
   // ponytail: paths are rebuilt every frame (no cache, so no cross-frame state); add a WeakMap keyed by Element if a profile says so.
   const paths = shapePaths(el);
+  const base = ctx.globalAlpha;
   if (el.fillStyle !== "none") {
-    ctx.fillStyle = resolveFillTint(el.strokeColor);
+    ctx.save();
+    ctx.globalAlpha = base * progress;
+    ctx.fillStyle = resolveFillTint(el.strokeColor, look, sticky);
+    if (sticky) {
+      // Sticky note drop shadow, as in Excaliflow.
+      ctx.shadowColor = "rgba(0, 0, 0, 0.14)";
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 4;
+    }
     ctx.fill(paths.fillPath);
+    ctx.restore();
   }
   if (el.fillStyle === "hachure") {
     ctx.save();
     ctx.clip(paths.fillPath);
     ctx.strokeStyle = strokeColor;
-    ctx.globalAlpha *= 0.36;
+    ctx.globalAlpha = base * progress * (look.dark ? 0.44 : 0.36);
     ctx.lineWidth = Math.max(1.0, sw * 0.5);
     ctx.setLineDash([]);
     ctx.stroke(paths.hachurePath);
@@ -472,12 +516,47 @@ export function drawStaticElement(ctx: Canvas2D, el: Element) {
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = el.strokeStyle !== "solid" ? sw + 0.5 : sw;
   applyDashStyle(ctx, el.strokeStyle, sw);
+  if (progress < 1) applyDrawOn(ctx, outlineLength(el), progress);
   ctx.stroke(paths.strokePath);
   ctx.restore();
 }
 
-export function drawElementText(ctx: Canvas2D, el: Element) {
-  if (el.type === "arrow" || !el.text || el.text.trim().length === 0) return;
+/** Draws an Image Element's picture into its box; without the picture, a hand-drawn placeholder box with a small picture icon. */
+export function drawImageElement(ctx: Canvas2D, el: Element, look: Look, picture: CanvasImageSource | undefined, progress = 1) {
+  const { x, y } = el;
+  const w = Math.max(2, el.width), h = Math.max(2, el.height);
+  if (picture) {
+    ctx.save();
+    ctx.globalAlpha *= progress;
+    ctx.drawImage(picture, x, y, w, h);
+    ctx.restore();
+    return;
+  }
+  drawStaticElement(ctx, { ...el, type: "rectangle", fillStyle: "hachure" }, look, progress);
+  const s = Math.min(w, h) * 0.4;
+  const cx = x + w / 2, cy = y + h / 2;
+  ctx.save();
+  ctx.globalAlpha *= progress;
+  ctx.strokeStyle = resolveStrokeColor(el.strokeColor, look);
+  ctx.lineWidth = Math.max(1.5, (Number(el.strokeWidth) || 2) * 0.9);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.setLineDash([]);
+  ctx.strokeRect(cx - s / 2, cy - s * 0.375, s, s * 0.75);
+  ctx.beginPath();
+  ctx.moveTo(cx - s / 2, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.15, cy - s * 0.05);
+  ctx.lineTo(cx + s * 0.05, cy + s * 0.15);
+  ctx.lineTo(cx + s * 0.2, cy - s * 0.02);
+  ctx.lineTo(cx + s / 2, cy + s * 0.3);
+  ctx.moveTo(cx - s * 0.1, cy - s * 0.17);
+  ctx.arc(cx - s * 0.2, cy - s * 0.17, s * 0.1, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function drawElementText(ctx: Canvas2D, el: Element, look: Look) {
+  if (el.type === "arrow" || el.type === "image" || !el.text || el.text.trim().length === 0) return;
   const fontSize = Number(el.fontSize) || 16;
   const lineHeight = Math.round(fontSize * LINE_HEIGHT);
   const lines = el.text.split("\n");
@@ -488,7 +567,7 @@ export function drawElementText(ctx: Canvas2D, el: Element) {
   const centerX = el.x + (el.width || 0) / 2;
   const centerY = el.y + (el.height || 0) / 2;
   const startY = centerY - (lines.length * lineHeight) / 2 + lineHeight / 2;
-  ctx.fillStyle = resolveStrokeColor(el.strokeColor);
+  ctx.fillStyle = resolveStrokeColor(el.strokeColor, look);
   lines.forEach((line, i) => ctx.fillText(line, centerX, startY + i * lineHeight));
   ctx.restore();
 }
