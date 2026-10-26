@@ -1,40 +1,134 @@
 .editor {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 220px minmax(0, 1fr) 320px;
   grid-template-rows: auto auto 1fr;
   gap: 8px;
   padding: 8px;
   font-family: system-ui, sans-serif;
+  font-size: 14px;
 }
 .top {
   grid-column: 1 / -1;
   display: flex;
+  gap: 16px;
   justify-content: space-between;
   align-items: center;
 }
 .top h1 {
   font-size: 1rem;
   margin: 0;
+  margin-right: auto;
+}
+.boards {
+  grid-row: 2 / 4;
+  grid-column: 1;
+}
+.boards h2,
+.steps h3 {
+  font-size: 0.9rem;
+  margin: 8px 0 4px;
+}
+.boards ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.boards li {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.boardBtn {
+  flex: 1;
+  text-align: left;
+}
+.boardBtn[aria-current="true"] {
+  background: #1c7ed6;
+  color: #fff;
+}
+.chooser {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chooser li {
+  display: block;
+  margin-bottom: 2px;
+}
+.file input {
+  display: block;
+  max-width: 200px;
 }
 .tools {
-  grid-column: 1 / -1;
+  grid-column: 2 / 4;
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
 }
 .tools button[aria-pressed="true"] {
   background: #1c7ed6;
   color: #fff;
 }
+.stage {
+  grid-column: 2;
+  position: relative;
+  container-type: inline-size;
+}
 .canvas {
+  display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 1px solid #ccc;
   touch-action: none;
 }
+.inline {
+  position: absolute;
+  box-sizing: border-box;
+  resize: none;
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid #1c7ed6;
+  font-family: sans-serif;
+  text-align: center;
+  overflow: hidden;
+}
+.steps {
+  grid-column: 3;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tabs button[aria-selected="true"] {
+  background: #1c7ed6;
+  color: #fff;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .steps ol {
   padding-left: 1.25rem;
+}
+.stepBtn {
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.active .stepBtn {
+  font-weight: 700;
+}
+.detail textarea {
+  width: 100%;
 }
 .error {
   grid-column: 1 / -1;
   color: #c92a2a;
+}
+.status {
+  grid-column: 1 / -1;
+  color: #2b8a3e;
 }
