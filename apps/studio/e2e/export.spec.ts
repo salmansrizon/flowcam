@@ -41,6 +41,7 @@ async function exportAndCheck(page: Page, recordingId: string, minSeconds: numbe
   await expect(page.getByTestId("save-state")).toHaveText("All changes saved");
   const expectedSeconds = Number(await page.getByTestId("edited-duration").textContent());
   expect(expectedSeconds).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   await page.getByRole("button", { name: "Export MP4" }).click();
   const video = page.getByLabel("Exported video");
   await expect(video).toBeVisible({ timeout: 600_000 });
@@ -125,6 +126,7 @@ test("Board Images appear in the exported video", async ({ page }) => {
 
   await page.getByRole("link", { name: "Review and export" }).click();
   await expect(page.getByTestId("save-state")).toHaveText("All changes saved", { timeout: 60_000 });
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   await page.getByRole("button", { name: "Export MP4" }).click();
   const video = page.getByLabel("Exported video");
   await expect(video).toBeVisible({ timeout: 120_000 });
