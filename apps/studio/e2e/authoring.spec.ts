@@ -65,7 +65,7 @@ function redPng(size: number): Buffer {
 }
 
 const pixel = (page: Page, x: number, y: number) =>
-  page.evaluate(([px, py]) => Array.from(document.querySelector("canvas")!.getContext("2d")!.getImageData(px, py, 1, 1).data), [x, y]);
+  page.evaluate(([px, py]) => Array.from(document.querySelector<HTMLCanvasElement>('canvas[aria-label="Board"]')!.getContext("2d")!.getImageData(px, py, 1, 1).data), [x, y]);
 
 test("two Boards with a Transition, reordered, survive a reload", async ({ page }) => {
   await page.goto("/");
@@ -119,6 +119,8 @@ test("sticky, inline text and an uploaded Image persist; a bad URL adds nothing"
   await expect.poll(() => pixel(page, 960, 540)).toEqual([255, 0, 0, 255]);
 
   await page.route("http://localhost:9/**", (r) => r.abort());
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByRole("menuitem", { name: "Image from URL…" }).click();
   await page.getByLabel("Image URL").fill("http://localhost:9/nope.png");
   await page.getByRole("button", { name: "Add image from URL" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Could not fetch" })).toContainText("Could not fetch that image");
@@ -145,14 +147,27 @@ test("a Focus Step by dragging, a Script and a Layout persist", async ({ page })
   await page.getByLabel("Layout").selectOption("side-by-side");
   await page.getByLabel("Effect").selectOption("draw-on");
   await page.getByRole("tab", { name: "Script" }).click();
-  await page.getByLabel("Script").fill("First we draw the box.");
+  await page.getByRole("textbox", { name: "Script" }).fill("First we draw the box.");
 
   await page.reload();
   await stepList(page).nth(0).getByRole("button", { name: /Reveal rectangle/ }).click();
   await expect(page.getByLabel("Layout")).toHaveValue("side-by-side");
   await expect(page.getByLabel("Effect")).toHaveValue("draw-on");
   await page.getByRole("tab", { name: "Script" }).click();
-  await expect(page.getByLabel("Script")).toHaveValue("First we draw the box.");
+  await expect(page.getByRole("textbox", { name: "Script" })).toHaveValue("First we draw the box.");
+});
+
+test("dark mode gives the top bar a dark background", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  // Read the computed colour through a canvas, which turns any CSS colour syntax into RGB.
+  const [r, g, b] = await page.locator("header").evaluate((el) => {
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.fillStyle = getComputedStyle(el).backgroundColor;
+    ctx.fillRect(0, 0, 1, 1);
+    return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+  });
+  expect((r + g + b) / 3).toBeLessThan(80);
 });
 
 test("merge adjacent reveals, add a highlight and a move", async ({ page }) => {
@@ -188,7 +203,9 @@ test("Start from a Template, then add another as a new Board", async ({ page }) 
   await page.getByRole("region", { name: "Start from" }).getByRole("button", { name: "RAG Pipeline" }).click();
   await expect(boardList(page)).toHaveCount(1);
   await expect(stepList(page).first()).toHaveText(/Reveal ellipse “User Query”/);
-  await page.getByLabel("Add Template").selectOption({ label: "CI/CD pipeline" });
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByRole("menuitem", { name: "Template" }).click();
+  await page.getByRole("menuitem", { name: "CI/CD pipeline" }).click();
   await expect(boardList(page)).toHaveCount(2);
   await page.reload();
   await expect(boardList(page)).toHaveCount(2);

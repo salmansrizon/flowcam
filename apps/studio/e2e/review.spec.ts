@@ -100,7 +100,7 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   expect(before).toBeGreaterThanOrEqual(2);
   await expect(page.getByTestId("timeline-step")).toHaveCount(2);
 
-  await page.getByLabel("Playhead").fill("1500");
+  await page.getByLabel("Playhead", { exact: true }).fill("1500");
   await page.getByRole("button", { name: "Split at playhead" }).click();
   await expect(parts).toHaveCount(before + 1);
   await parts.first().click({ position: { x: 4, y: 10 } });
@@ -115,10 +115,13 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   expect(await editedSeconds(page)).toBeCloseTo(edited - 0.5, 1);
   await page.getByRole("button", { name: "Undo" }).click();
   expect(await editedSeconds(page)).toBe(edited);
+  // The Layout at playhead tool opens the Layout tab.
+  await page.getByRole("button", { name: "Layout at playhead" }).click();
   await page.getByLabel("Layout", { exact: true }).selectOption("side-by-side");
   await page.getByRole("button", { name: "Set Layout" }).click();
+  await page.getByRole("tab", { name: "Background" }).click();
   await page.getByLabel("Padding").fill("6");
-  await page.getByLabel("Background").selectOption("sunset");
+  await page.getByRole("radio", { name: "sunset" }).click();
   await saved(page);
   await page.screenshot(shot("timeline"));
 
@@ -133,9 +136,11 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   expect(persisted.layouts).toHaveLength(1);
 
   // Export: the MP4 is as long as the edited timeline.
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   await page.getByRole("button", { name: "Export MP4" }).click();
   const video = page.getByLabel("Exported video");
   await expect(video).toBeVisible({ timeout: 180_000 });
+  await page.screenshot(shot("export-dialog"));
   const meta = await video.evaluate(async (v: HTMLVideoElement) => {
     if (v.readyState < 1) await new Promise((r) => v.addEventListener("loadedmetadata", r, { once: true }));
     v.currentTime = 0.3;
@@ -159,10 +164,27 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   expect(Math.abs(meta.duration - edited)).toBeLessThan(0.15);
 });
 
+test("the Review in dark mode has the settings tabs", async ({ page }) => {
+  test.setTimeout(60_000);
+  const recordingId = await record(page, 1, 1000);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto(`/review?recording=${recordingId}`);
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  for (const name of ["Background", "Camera", "Audio", "Captions", "Layout"]) {
+    await expect(page.getByRole("tab", { name })).toBeVisible({ timeout: 30_000 });
+  }
+  await page.screenshot(shot("review-dark"));
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.goto(`/review?recording=${recordingId}&edit=1`);
+  await expect(page.getByTestId("timeline-part").first()).toBeVisible({ timeout: 30_000 });
+  await page.screenshot(shot("timeline-dark"));
+});
+
 test("4K export is shown as Pro and cannot be chosen", async ({ page }) => {
   test.setTimeout(60_000);
   const recordingId = await record(page, 1, 1000);
   await page.goto(`/review?recording=${recordingId}`);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   await expect(page.getByRole("option", { name: "4K (Pro)" })).toHaveJSProperty("disabled", true);
   await expect(page.getByText("Pro", { exact: true })).toBeVisible();
 });

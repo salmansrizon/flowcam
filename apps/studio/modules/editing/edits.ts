@@ -49,6 +49,7 @@ export const BACKGROUNDS = ["white", "slate", "black", "blue", "sunset", "ocean"
 export type Background = (typeof BACKGROUNDS)[number];
 export const MAX_PADDING = 20;
 export const MAX_SHADOW = 100;
+export const MAX_CORNERS = 60;
 
 export interface Edits {
   version: typeof EDITS_VERSION;
@@ -59,8 +60,8 @@ export interface Edits {
   /** Silence found in the Microphone; null until detected. */
   deadAir: DeadAir[] | null;
   captions: { enabled: boolean; style: CaptionStyle; position: CaptionPosition };
-  /** Picture around the frame. `padding` is % of the width on each side; `shadow` 0–100. */
-  frame: { background: Background; padding: number; shadow: number };
+  /** Picture around the frame. `padding` is % of the width on each side; `shadow` 0–100; `corners` is the radius in px (default 20). */
+  frame: { background: Background; padding: number; shadow: number; corners?: number };
   /** Noise reduction and loudness levelling at export. */
   enhanceAudio: boolean;
 }
@@ -140,6 +141,7 @@ export function parseEdits(v: unknown, clipIds: readonly string[]): Edits {
   oneOf(frame.background, BACKGROUNDS, "edits.frame.background");
   num(frame.padding, "edits.frame.padding", 0, MAX_PADDING);
   num(frame.shadow, "edits.frame.shadow", 0, MAX_SHADOW);
+  if (frame.corners !== undefined) num(frame.corners, "edits.frame.corners", 0, MAX_CORNERS);
   bool(o.enhanceAudio, "edits.enhanceAudio");
   return o as unknown as Edits;
 }

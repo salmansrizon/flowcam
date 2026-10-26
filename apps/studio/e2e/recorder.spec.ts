@@ -254,3 +254,18 @@ test("moves between Boards with the Teleprompter and the Step's Layout in the Pr
   expect(moves(0)).toEqual(["step 1", "step 2", "board 1", "step 1", "step 2"]);
   expect(moves(1)).toEqual(["step 1", "step 0", "board 0"]);
 });
+
+test("pre-flight shows the key cheat-sheet and follows the system dark mode", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/record");
+  const sheet = page.getByLabel("Key cheat-sheet");
+  await expect(sheet).toBeVisible();
+  for (const key of ["→", "←", "I", "Space", "R"]) await expect(sheet.locator("kbd", { hasText: new RegExp(`^${key}$`) })).toBeVisible();
+  const [r, g, b] = await page.evaluate(() => {
+    const c = document.createElement("canvas").getContext("2d")!;
+    c.fillStyle = getComputedStyle(document.body).backgroundColor;
+    c.fillRect(0, 0, 1, 1);
+    return [...c.getImageData(0, 0, 1, 1).data];
+  });
+  expect(r + g + b).toBeLessThan(150);
+});

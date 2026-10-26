@@ -15,7 +15,13 @@ import {
   type TimedPoint,
 } from "@flowcam/domain";
 import { renderFrame } from "@flowcam/renderer";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { CheckCircle2, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { Panel } from "@/components/studio/Panel";
+import { TopBar } from "@/components/studio/TopBar";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 import { composeFrame } from "../export/compose";
 import { decodeImages } from "../presentation/assets";
 import { startClipCapture, type ClipCapture } from "./clip";
@@ -84,11 +90,15 @@ export function Recorder() {
   const [imagesReady, setImagesReady] = useState(false);
   const [clipId, setClipId] = useState<string | null>(null);
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [camId, setCamId] = useState<string>();
+  const [micId, setMicId] = useState<string>();
+  const [summary, setSummary] = useState({ clips: 0, ms: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nextRef = useRef<HTMLCanvasElement>(null);
-  const promptRef = useRef<HTMLElement>(null);
-  const meterRef = useRef<HTMLMeterElement>(null);
+  const promptRef = useRef<HTMLDivElement>(null);
+  const meterRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<HTMLSpanElement>(null);
   // Mutable session state read by key handlers and the draw loop without re-rendering.
   const s = useRef({
@@ -101,6 +111,8 @@ export function Recorder() {
     manifest: null as RecordingManifest | null,
     clip: null as LiveClip | null,
     lastClip: null as ClipStart | null,
+    /** Length of each saved Clip, for the finished screen's summary. */
+    durations: new Map<string, number>(),
     env: { theme: THEMES[0], images: new Map() } as RenderEnv,
     video: null as HTMLVideoElement | null,
     /** Layout last drawn, to map pointer positions onto the Board. */
@@ -112,7 +124,6 @@ export function Recorder() {
   // Load the Presentation and its Images, and open the Camera and Microphone.
   useEffect(() => {
     let live = true;
-    let opened: MediaStream | null = null;
     loadPresentation().then(
       async (p) => {
         if (!live) return;
@@ -125,15 +136,33 @@ export function Recorder() {
       },
       (e) => live && setError(`Could not load the Presentation: ${e}`),
     );
-    navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true }).then(
-      (m) => (live ? setStream((opened = m)) : m.getTracks().forEach((t) => t.stop())),
-      (e) => live && setError(`Camera or microphone unavailable: ${e}`),
-    );
+    return () => {
+      live = false;
+    };
+  }, [s]);
+
+  // Open the Camera and Microphone (the chosen ones, once a picker is used); reopen when a picker changes.
+  useEffect(() => {
+    let live = true;
+    let opened: MediaStream | null = null;
+    navigator.mediaDevices
+      .getUserMedia({ video: { width: 1280, height: 720, ...(camId && { deviceId: { exact: camId } }) }, audio: micId ? { deviceId: { exact: micId } } : true })
+      .then(
+        async (m) => {
+          if (!live) return m.getTracks().forEach((t) => t.stop());
+          setError(null);
+          setStream((opened = m));
+          // Labels (and the full list) are only available once access is granted.
+          setDevices(await navigator.mediaDevices.enumerateDevices());
+        },
+        (e) => live && setError(`Camera or microphone unavailable: ${e}`),
+      );
     return () => {
       live = false;
       opened?.getTracks().forEach((t) => t.stop());
     };
-  }, [s]);
+  }, [camId, micId]);
+
 
   // Pre-flight microphone level.
   useEffect(() => {
@@ -145,7 +174,12 @@ export function Recorder() {
     let frame = requestAnimationFrame(function tick() {
       analyser.getFloatTimeDomainData(samples);
       const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
-      if (meterRef.current) meterRef.current.value = Math.min(1, rms * 4);
+      const level = Math.min(1, rms * 4);
+      const meter = meterRef.current;
+      if (meter) {
+        meter.setAttribute("aria-valuenow", level.toFixed(2));
+        (meter.firstElementChild as HTMLElement).style.width = `${level * 100}%`;
+      }
       frame = requestAnimationFrame(tick);
     });
     return () => {
@@ -233,9 +267,11 @@ export function Recorder() {
     const manifest = s.manifest!;
     s.clip = null;
     const { mediaStartMs, endMs } = await clip.capture.finish();
-    await writeClipLog(manifest.id, finishLog({ clipId: clip.id, startBoard: clip.startBoard, startStep: clip.startStep, events: clip.events }, mediaStartMs, endMs));
+    const log = finishLog({ clipId: clip.id, startBoard: clip.startBoard, startStep: clip.startStep, events: clip.events }, mediaStartMs, endMs);
+    await writeClipLog(manifest.id, log);
     manifest.clips.push(clip.id);
     await writeRecording(manifest);
+    s.durations.set(clip.id, log.durationMs);
     s.lastClip = { id: clip.id, startBoard: clip.startBoard, startStep: clip.startStep };
   }
 
@@ -250,6 +286,7 @@ export function Recorder() {
       await live.capture.cancel();
     } else if (target) {
       manifest.clips = manifest.clips.filter((c) => c !== target!.id);
+      s.durations.delete(target.id);
       s.lastClip = null;
     }
     if (!target) return;
@@ -278,6 +315,7 @@ export function Recorder() {
         if (s.clip) await endClip();
         stream.getTracks().forEach((t) => t.stop());
         setRecordingId(s.manifest!.id);
+        setSummary({ clips: s.manifest!.clips.length, ms: s.manifest!.clips.reduce((sum, c) => sum + (s.durations.get(c) ?? 0), 0) });
         go("done");
       }
     } catch (e) {
@@ -287,6 +325,11 @@ export function Recorder() {
     } finally {
       s.busy = false;
     }
+  }
+
+  function toggleInk() {
+    s.ink = !s.ink;
+    setInkOn(s.ink);
   }
 
   function log(ev: LogEvent) {
@@ -307,9 +350,10 @@ export function Recorder() {
           sync();
         }
       } else if ((e.key === "i" || e.key === "I") && recording) {
-        s.ink = !s.ink;
-        setInkOn(s.ink);
+        toggleInk();
       } else if (e.key === " ") {
+        // A focused button or picker keeps Space for itself.
+        if ((e.target as HTMLElement).closest("button, [role=combobox]")) return;
         e.preventDefault();
         void run(s.phase === "recording" ? "pause" : "start");
       } else if (e.key === "r" || e.key === "R") {
@@ -363,37 +407,88 @@ export function Recorder() {
 
   if (phase === "done") {
     return (
-      <main style={{ padding: 32, fontFamily: "system-ui" }} data-phase={phase}>
-        <h1>Recording saved</h1>
-        <p>
-          Recording <code data-testid="recording-id">{recordingId}</code> is in this browser&apos;s storage.
-        </p>
-        <p>
-          <a href={`/review?recording=${recordingId}`}>Review and export</a>
-        </p>
-      </main>
+      <div className="flex min-h-screen flex-col">
+        <TopBar />
+        <main data-phase={phase} className="grid flex-1 place-items-center p-6">
+          <Panel className="flex w-full max-w-md flex-col items-center gap-5 p-8 text-center">
+            <CheckCircle2 aria-hidden className="size-12 text-primary" />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Recording saved</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Recording <code data-testid="recording-id" className="break-all font-mono text-xs text-foreground">{recordingId}</code> is in this browser&apos;s storage.
+              </p>
+            </div>
+            <dl className="grid w-full grid-cols-2 gap-3">
+              <div className="rounded-lg border p-3">
+                <dt className="text-xs text-muted-foreground">Clips</dt>
+                <dd className="text-2xl font-semibold tabular-nums">{summary.clips}</dd>
+              </div>
+              <div className="rounded-lg border p-3">
+                <dt className="text-xs text-muted-foreground">Length</dt>
+                <dd className="text-2xl font-semibold tabular-nums">{clock(summary.ms)}</dd>
+              </div>
+            </dl>
+            <Button asChild size="lg" className="h-11 w-full text-base">
+              <a href={`/review?recording=${recordingId}`}>Review and export</a>
+            </Button>
+          </Panel>
+        </main>
+      </div>
     );
   }
 
   if (phase === "preflight") {
+    const cams = devices.filter((d) => d.kind === "videoinput");
+    const mics = devices.filter((d) => d.kind === "audioinput");
     return (
-      <main style={{ padding: 32, fontFamily: "system-ui", maxWidth: 720 }} data-phase={phase}>
-        <h1>Ready to record</h1>
-        {error && <p role="alert">{error}</p>}
-        <video ref={cameraRef} autoPlay muted playsInline aria-label="Camera preview" style={{ width: "100%", background: "#000", borderRadius: 8 }} />
-        <p>
-          <label>
-            Microphone level <meter ref={meterRef} min={0} max={1} low={0.05} high={0.9} value={0} style={{ width: 240 }} />
-          </label>
-        </p>
-        <p>
-          {presentation ? `Presenting “${presentation.title}”.` : "Loading the Presentation…"} Keys: → next Step (then the next Board), ← previous
-          Step, I Ink, Space pause, R Retake.
-        </p>
-        <button type="button" onClick={() => void run("start")} disabled={!stream || !presentation}>
-          Start
-        </button>
-      </main>
+      <div className="flex min-h-screen flex-col">
+        <TopBar>
+          <span className="truncate text-sm text-muted-foreground">{presentation ? `Presenting “${presentation.title}”.` : "Loading the Presentation…"}</span>
+        </TopBar>
+        <main data-phase={phase} className="mx-auto grid w-full max-w-6xl flex-1 content-start gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <Panel className="flex flex-col gap-4 p-4">
+            <h1 className="text-xl font-semibold tracking-tight">Ready to record</h1>
+            {error && (
+              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <video ref={cameraRef} autoPlay muted playsInline aria-label="Camera preview" className="aspect-video w-full rounded-lg bg-black object-cover" />
+            <div className="flex items-center gap-3 text-sm">
+              <span id="mic-level-label" className="shrink-0 font-medium">
+                Microphone level
+              </span>
+              <div ref={meterRef} role="meter" aria-labelledby="mic-level-label" aria-valuemin={0} aria-valuemax={1} aria-valuenow={0} className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-0 rounded-full bg-primary" />
+              </div>
+            </div>
+          </Panel>
+          <div className="flex flex-col gap-4">
+            {(cams.length > 1 || mics.length > 1) && (
+              <Panel className="flex flex-col gap-3 p-4">
+                {cams.length > 1 && <DevicePicker label="Camera device" devices={cams} value={camId ?? stream?.getVideoTracks()[0]?.getSettings().deviceId} onChange={setCamId} />}
+                {mics.length > 1 && <DevicePicker label="Microphone device" devices={mics} value={micId ?? stream?.getAudioTracks()[0]?.getSettings().deviceId} onChange={setMicId} />}
+              </Panel>
+            )}
+            <Panel className="p-4">
+              <section aria-label="Key cheat-sheet">
+                <h2 className="mb-3 text-sm font-semibold">Keys while recording</h2>
+                <ul className="grid gap-2 text-sm">
+                  <Hint keys={["→"]}>Next Step, then the next Board</Hint>
+                  <Hint keys={["←"]}>Previous Step</Hint>
+                  <Hint keys={["I"]}>Ink on or off</Hint>
+                  <Hint keys={["Space"]}>Pause or resume</Hint>
+                  <Hint keys={["R"]}>Retake the Clip</Hint>
+                </ul>
+              </section>
+            </Panel>
+            <Button type="button" size="lg" className="h-14 text-lg" onClick={() => void run("start")} disabled={!stream || !presentation}>
+              Start
+              <Key decorative>Space</Key>
+            </Button>
+          </div>
+        </main>
+      </div>
     );
   }
 
@@ -402,11 +497,18 @@ export function Recorder() {
   const nextLine = !nav?.next
     ? "End of the Presentation"
     : (nav.next.step?.script?.split("\n").find((l) => l.trim()) ?? (nav.next.view.boardIndex !== nav.board ? `Board ${nav.next.view.boardIndex + 1}` : "No Script"));
+  const recording = phase === "recording";
 
   return (
-    <main data-phase={phase} data-clip-id={clipId ?? undefined} style={{ fontFamily: "system-ui", background: "#222", minHeight: "100vh", color: "#fff" }}>
-      <div style={{ display: "flex", gap: 12, padding: 12, alignItems: "flex-start" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+    <div className="flex min-h-screen flex-col">
+      <TopBar>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-wide">
+          <span aria-hidden className={`size-3 rounded-full ${recording ? "bg-destructive motion-safe:animate-pulse" : "bg-muted-foreground"}`} />
+          <span className={recording ? "text-destructive" : "text-muted-foreground"}>{recording ? "REC" : phase === "paused" ? "PAUSED" : "GET READY"}</span>
+        </span>
+      </TopBar>
+      <main data-phase={phase} data-clip-id={clipId ?? undefined} className="grid flex-1 content-start items-start gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Panel className="relative overflow-hidden p-0">
           <canvas
             ref={canvasRef}
             width={BOARD_WIDTH}
@@ -416,44 +518,101 @@ export function Recorder() {
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            style={{ display: "block", width: "100%", touchAction: "none", cursor: inkOn ? "crosshair" : "default" }}
+            className="block h-auto w-full touch-none"
+            style={{ cursor: inkOn ? "crosshair" : "default" }}
           />
-          {phase === "countdown" && (
-            <div aria-live="assertive" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 160, background: "rgba(0,0,0,.4)" }}>
-              {count}
-            </div>
-          )}
-        </div>
+        </Panel>
         {/* Presenter-only aids: never drawn on the Board canvas, logged or recorded. */}
-        <aside style={{ width: 340, flex: "none", display: "grid", gap: 12 }}>
-          <video ref={cameraRef} autoPlay muted playsInline aria-label="Camera" style={{ width: "100%", borderRadius: 8, background: "#000" }} />
-          <section
-            ref={promptRef}
-            aria-label="Teleprompter"
-            style={{ height: 230, overflow: "hidden", fontSize: 30, lineHeight: 1.35, whiteSpace: "pre-wrap", background: "#111", borderRadius: 8, padding: "8px 12px" }}
-          >
-            {script?.trim() ? script : <span style={{ opacity: 0.4, fontSize: 18 }}>No Script for this Step</span>}
-          </section>
-          <figure style={{ margin: 0, fontSize: 14 }}>
-            <figcaption style={{ marginBottom: 4, opacity: 0.8 }}>Next: {nextLine}</figcaption>
-            <canvas ref={nextRef} width={320} height={180} aria-label="Next Step preview" style={{ display: "block", width: "100%", borderRadius: 4, background: "#000" }} />
-          </figure>
+        <aside className="grid gap-3">
+          <Panel className="flex items-center justify-between gap-3 p-3">
+            <video ref={cameraRef} autoPlay muted playsInline aria-label="Camera" className="aspect-video w-24 rounded-md bg-black object-cover" />
+            <span ref={timerRef} aria-label="Clip time" className="font-mono text-3xl font-semibold tabular-nums">
+              0:00
+            </span>
+            <span className="flex-1 text-right text-sm text-muted-foreground">
+              Board {(nav?.board ?? 0) + 1} of {boards.length} · Step {nav?.step ?? 0} of {boards[nav?.board ?? 0]?.steps.length ?? 0}
+            </span>
+          </Panel>
+          <Panel ref={promptRef} role="region" aria-label="Teleprompter" className="h-40 overflow-hidden whitespace-pre-wrap px-4 py-3 text-3xl leading-snug">
+            {script?.trim() ? script : <span className="text-lg text-muted-foreground">No Script for this Step</span>}
+          </Panel>
+          <Panel className="p-3">
+            <figure className="m-0 text-sm">
+              <figcaption className="mb-2 truncate font-medium">Next: {nextLine}</figcaption>
+              <canvas ref={nextRef} width={320} height={180} aria-label="Next Step preview" className="block w-full rounded-md bg-muted" />
+            </figure>
+          </Panel>
+          <Panel className="flex flex-wrap items-center gap-2 p-3">
+            <Button type="button" variant="outline" onClick={() => void run(recording ? "pause" : "start")} disabled={phase === "countdown"}>
+              {recording ? <Pause aria-hidden /> : <Play aria-hidden />}
+              {recording ? "Pause" : "Resume"}
+              <Key decorative>Space</Key>
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void run("retake")} disabled={phase === "countdown"}>
+              <RotateCcw aria-hidden />
+              Retake
+              <Key decorative>R</Key>
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => void run("stop")} disabled={phase === "countdown"}>
+              <Square aria-hidden />
+              Stop
+            </Button>
+            <Toggle variant="outline" pressed={inkOn} onPressedChange={toggleInk} disabled={!recording} className="ml-auto">
+              Ink {inkOn ? "on" : "off"}
+              <Key decorative>I</Key>
+            </Toggle>
+          </Panel>
+          {error && (
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </aside>
-      </div>
-      <div style={{ display: "flex", gap: 24, alignItems: "center", padding: "0 12px 12px" }}>
-        <span>{phase === "recording" ? "● Recording" : phase === "paused" ? "Paused (Space to resume)" : "Starting…"}</span>
-        <span ref={timerRef} aria-label="Clip time">
-          0:00
-        </span>
-        <span>
-          Board {(nav?.board ?? 0) + 1} of {boards.length} · Step {nav?.step ?? 0} of {boards[nav?.board ?? 0]?.steps.length ?? 0}
-        </span>
-        <span>Ink {inkOn ? "on" : "off"}</span>
-        {error && <span role="alert">{error}</span>}
-        <button type="button" onClick={() => void run("stop")} disabled={phase === "countdown"} style={{ marginLeft: "auto" }}>
-          Stop
-        </button>
-      </div>
-    </main>
+        {phase === "countdown" && (
+          <div aria-live="assertive" className="fixed inset-0 z-50 grid place-items-center bg-background/85 text-[28vmin] font-bold tabular-nums backdrop-blur-sm">
+            {count}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/** Key hint, ported from Excaliflow's `.hint-key` (Apache-2.0, excaliflow/index.html): a small mono keycap. */
+function Key({ children, decorative }: { children: ReactNode; decorative?: boolean }) {
+  return (
+    <kbd aria-hidden={decorative || undefined} className="rounded border bg-muted px-1.5 py-px font-mono text-[11px] font-medium text-foreground">
+      {children}
+    </kbd>
+  );
+}
+
+function Hint({ keys, children }: { keys: string[]; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-3">
+      <span className="flex w-14 shrink-0 gap-1">
+        {keys.map((k) => (
+          <Key key={k}>{k}</Key>
+        ))}
+      </span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function DevicePicker({ label, devices, value, onChange }: { label: string; devices: MediaDeviceInfo[]; value: string | undefined; onChange: (id: string) => void }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label={label} className="w-full">
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        {devices.map((d, i) => (
+          <SelectItem key={d.deviceId} value={d.deviceId}>
+            {d.label || `${label} ${i + 1}`}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

@@ -138,6 +138,12 @@ describe("parseEdits", () => {
     expect(parseEdits(JSON.parse(JSON.stringify(defaultEdits(clips))), ids).deadAir).toBeNull();
   });
 
+  it("accepts frame corners in range and rejects them outside it", () => {
+    const e = base();
+    expect(parseEdits({ ...e, frame: { ...e.frame, corners: 32 } }, ids).frame.corners).toBe(32);
+    expect(() => parseEdits({ ...e, frame: { ...e.frame, corners: 999 } }, ids)).toThrow(InvalidDataError);
+  });
+
   it.each([
     ["wrong version", (e: Edits) => ({ ...e, version: 2 })],
     ["unknown Clip", (e: Edits) => ({ ...e, segments: [{ ...e.segments[0], clipId: "zzz" }] })],
