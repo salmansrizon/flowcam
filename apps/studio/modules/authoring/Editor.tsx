@@ -565,7 +565,7 @@ export default function Editor() {
             {tool === "focus" && <p>Drag a rectangle on the Board to zoom onto it.</p>}
             {morphTo && (
               <p role="group" aria-label="Move in a Step">
-                Drag the Element's outline to where it should go.{" "}
+                Drag the Element&apos;s outline to where it should go.{" "}
                 <button onClick={() => { update((b) => addMorphStep(b, morphTo.id, morphTo.to)); setMorphTo(null); setActiveStep(board.steps.length); }}>Confirm move</button>{" "}
                 <button onClick={() => setMorphTo(null)}>Cancel</button>
               </p>
