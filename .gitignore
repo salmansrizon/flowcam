@@ -3,6 +3,7 @@ docs/MONEY-FLOW.md
 docs/cost-tracker/
 docs/adr/0020-monthly-cost-tracking-by-topic.md
 docs/private/
+docs/reports/
 
 # Secrets and local environment
 .env
