@@ -232,7 +232,7 @@ Model IDs and prices were read from OpenRouter's models API on 17 October 2026; 
 - **Credits:** a Hold is placed and checked in one transaction at submission; charge on success, release on failure; a Standard Job that escalates is still charged its fixed price.
 - **Storage cleanup:** Job inputs and in-between files deleted on completion; a Free user's result deleted once downloaded (7 days at most); Pro results kept; daily sweep of leftovers.
 - **Abuse limits (conservative):**
-  - **Sign-up grant:** given only after email verification and a first Presentation.
+  - **Sign-up grant:** given only after email verification, so "Generate from a topic" works for a first Presentation.
   - **Checks:** Cloudflare Turnstile on sign-up and on every AI Job from a Free account. Disposable email domains are blocked, and Gmail-style aliases count as one address.
   - **One grant per** device and network address in 24 hours.
   - **Limits by plan:**

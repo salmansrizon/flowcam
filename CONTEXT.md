@@ -181,7 +181,7 @@ Moving an idle Share Link's video from full streaming to a plain video file afte
 _Avoid_: Archiving, expiry, cold storage
 
 **Remix**:
-Copying the Presentation behind a Share Link into the viewer's own Flowcam account so they can build on it.
+Copying the Presentation behind a Share Link to the viewer so they can build on it: into their browser's local storage for anyone, signed in or not, and also Synced for Pro viewers.
 _Avoid_: Fork, clone, duplicate
 
 **Sync**:

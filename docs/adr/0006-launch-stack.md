@@ -14,4 +14,4 @@ The Supabase project runs in Singapore (`ap-southeast-1`), chosen by the founder
 ## Consequences
 
 - Storage is accessed through Supabase's S3-compatible API, so files can move to R2 later if storage transfer costs grow.
-- The OpenRouter key never reaches a client; Credits are deducted on the server before each AI call.
+- The OpenRouter key never reaches a client; Credits are held on the server before each AI call and charged only if it succeeds (ADR 0011).

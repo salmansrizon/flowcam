@@ -22,3 +22,12 @@ target/
 Thumbs.db
 .vscode/
 .idea/
+
+# Build and test artefacts
+*.tsbuildinfo
+next-env.d.ts
+test-results/
+playwright-report/
+
+# Agent worktrees
+.claude/worktrees/
