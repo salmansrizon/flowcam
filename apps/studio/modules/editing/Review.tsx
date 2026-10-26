@@ -2,11 +2,21 @@
 
 import { LAYOUTS, type Layout } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
+import { Blend, Diamond, Download, Eraser, Flag, Gauge, LayoutTemplate, Pause, Pencil, Play, Scissors, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Panel } from "@/components/studio/Panel";
+import { TopBar } from "@/components/studio/TopBar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { CAPTION_LOOKS, cueAt, cuesFor, toSrt, toVtt } from "../captions/captions";
 import { transcribe } from "../captions/transcribe";
-import { composeFrame, decodeMicrophone } from "../export/compose";
+import { BACKGROUND_FILLS, composeFrame, decodeMicrophone } from "../export/compose";
 import Exporter from "../export/Exporter";
 import { decodeImages, imageIdsOf } from "../presentation/assets";
 import { detectDeadAir } from "./dead-air";
@@ -33,6 +43,7 @@ import {
   type DeadAir,
   type Edits,
 } from "./edits";
+import { NativeSelect, RangeInput, SegmentedRow, Section, SwatchRow } from "./ui";
 import { loadEditable, writeEdits, writeTranscript, type EditableRecording } from "./store";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -56,6 +67,7 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
   const [clock, setClock] = useState(0);
   const [selected, setSelected] = useState(0);
   const [range, setRange] = useState<[number, number]>([0, 1000]);
+  const [tab, setTab] = useState("background");
   const [layoutChoice, setLayoutChoice] = useState<Layout | "auto">("auto");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -246,8 +258,8 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
     return () => window.removeEventListener("keydown", onKey);
   }, [undo]);
 
-  if (error && !data) return <main style={page} role="alert">{error}</main>;
-  if (!data || !edits) return <main style={page}>{status}</main>;
+  if (error && !data) return <main className="p-8 text-destructive" role="alert">{error}</main>;
+  if (!data || !edits) return <main className="p-8 text-muted-foreground">{status}</main>;
 
   const seg = edits.segments[Math.min(selected, edits.segments.length - 1)];
   const clipNo = (clipId: string) => data.recording.clips.indexOf(clipId) + 1;
@@ -259,221 +271,298 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
     setPlaying(false);
     setPlayhead(Math.max(0, Math.min(t, total)));
   };
+  const name = `${data.presentation.title} · ${new Date(data.recording.createdAt).toLocaleDateString()}`;
+  const here = layoutAt(edits, data.recording.clips, toSource(ps, shownTime)?.clipId ?? data.recording.clips[0], toSource(ps, shownTime)?.t ?? 0);
+  const undoButton = (
+    <Button type="button" variant="outline" onClick={undo} disabled={!history.length}>
+      <Undo2 /> Undo
+    </Button>
+  );
 
   return (
-    <main style={page} data-mode={edit ? "timeline" : "review"}>
-      <header style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
-        <h1 style={{ margin: 0 }}>{edit ? "Timeline" : "Review"}</h1>
-        <span>
-          Edited length <strong data-testid="edited-duration">{secs(total)}</strong> s
-        </span>
-        <span data-testid="save-state">{saving ? "Saving…" : "All changes saved"}</span>
-        {(status || wantsTranscript) && <span role="status">{status || captionStatus || "Generating captions…"}</span>}
-        {error && <span role="alert">{error}</span>}
-        <span style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
-          <button type="button" onClick={undo} disabled={!history.length}>
-            Undo
-          </button>
-          {edit ? (
-            <Link href={`/review?recording=${recordingId}`}>Back to Review</Link>
-          ) : (
-            <Link href={`/review?recording=${recordingId}&edit=1`}>Edit on Timeline</Link>
-          )}
-        </span>
-      </header>
-
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 24, marginTop: 16 }}>
-        <section>
-          <canvas ref={canvasRef} width={PREVIEW_W} height={PREVIEW_H} aria-label="Preview" style={{ width: "100%", borderRadius: 8, background: "#000", display: "block" }} />
-          {data.clips.map((c) => (
-            <video
-              key={c.log.clipId}
-              ref={(v) => void (v ? videosRef.current.set(c.log.clipId, v) : videosRef.current.delete(c.log.clipId))}
-              src={urls.get(c.log.clipId)}
-              preload="auto"
-              playsInline
-              hidden
-            />
-          ))}
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-            <button type="button" onClick={() => setPlaying((p) => !p)}>
-              {playing ? "Pause" : "Play"}
-            </button>
-            <input
-              type="range"
-              aria-label="Playhead"
-              min={0}
-              max={Math.max(1, Math.round(total))}
-              step={10}
-              value={Math.round(shownTime)}
-              onChange={(e) => seek(Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span data-testid="preview-time">
-              {secs(shownTime)} / {secs(total)} s
-            </span>
-          </div>
-          {edit && (
-            <Timeline
-              data={data}
-              edits={edits}
-              total={total}
-              playhead={shownTime}
-              selected={selected}
-              onSeek={seek}
-              onSelect={setSelected}
-            />
-          )}
-          {edit && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 12, alignItems: "end" }}>
-              <button type="button" onClick={() => apply(split(edits, playhead))}>
-                Split at playhead
-              </button>
-              <fieldset style={fieldset}>
-                <legend>Delete a range (s)</legend>
-                <input type="number" aria-label="Range start" step={0.1} min={0} value={secs(range[0])} onChange={(e) => setRange([Number(e.target.value) * 1000, range[1]])} style={{ width: 70 }} />
-                {" to "}
-                <input type="number" aria-label="Range end" step={0.1} min={0} value={secs(range[1])} onChange={(e) => setRange([range[0], Number(e.target.value) * 1000])} style={{ width: 70 }} />{" "}
-                <button type="button" onClick={() => apply(deleteRange(edits, range[0], range[1]))}>
-                  Delete range
-                </button>
-              </fieldset>
-              <fieldset style={fieldset}>
-                <legend>Layout from the playhead on</legend>
-                <select aria-label="Layout" value={layoutChoice} onChange={(e) => setLayoutChoice(e.target.value as Layout | "auto")}>
-                  <option value="auto">Follow the Steps</option>
-                  {LAYOUTS.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>{" "}
-                <button type="button" onClick={() => apply(setLayout(edits, playhead, layoutChoice))}>
-                  Set Layout
-                </button>
-              </fieldset>
-            </div>
-          )}
-          {edit && seg && (
-            <fieldset style={{ ...fieldset, marginTop: 12 }} aria-label="Selected part">
-              <legend>
-                Part {selected + 1}: Clip {clipNo(seg.clipId)}, {secs(seg.start)}–{secs(seg.end)} s
-              </legend>
-              <label>
-                Trim start{" "}
-                <input type="number" aria-label="Trim start" step={0.1} value={secs(seg.start)} onChange={(e) => apply(trim(edits, selected, Number(e.target.value) * 1000, seg.end, durationOf(seg.clipId)))} style={{ width: 70 }} />
-              </label>{" "}
-              <label>
-                Trim end{" "}
-                <input type="number" aria-label="Trim end" step={0.1} value={secs(seg.end)} onChange={(e) => apply(trim(edits, selected, seg.start, Number(e.target.value) * 1000, durationOf(seg.clipId)))} style={{ width: 70 }} />
-              </label>{" "}
-              <label>
-                Speed{" "}
-                <select aria-label="Speed" value={seg.speed} onChange={(e) => apply(setSpeed(edits, selected, Number(e.target.value)))}>
-                  {SPEEDS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}x
-                    </option>
-                  ))}
-                </select>
-              </label>{" "}
-              {selected > 0 && (
-                <label>
-                  Transition in{" "}
-                  <select aria-label="Transition" value={seg.transition} onChange={(e) => apply(setTransition(edits, selected, e.target.value as ClipTransition))}>
-                    {CLIP_TRANSITIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+    <TooltipProvider>
+      <main className="flex h-dvh flex-col overflow-hidden" data-mode={edit ? "timeline" : "review"}>
+        <TopBar
+          actions={
+            <>
+              {!edit && undoButton}
+              {edit ? (
+                <Button asChild variant="outline">
+                  <Link href={`/review?recording=${recordingId}`}>Back to Review</Link>
+                </Button>
+              ) : (
+                <Button asChild variant="outline">
+                  <Link href={`/review?recording=${recordingId}&edit=1`}>
+                    <Pencil /> Edit on Timeline
+                  </Link>
+                </Button>
               )}
-            </fieldset>
-          )}
-        </section>
+              <Exporter recordingId={recordingId} />
+            </>
+          }
+        >
+          <h1 className="truncate text-sm font-medium">{name}</h1>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            Edited length <strong className="text-foreground" data-testid="edited-duration">{secs(total)}</strong> s
+          </span>
+          <span className="shrink-0 text-xs text-muted-foreground" data-testid="save-state">{saving ? "Saving…" : "All changes saved"}</span>
+          {(status || wantsTranscript) && <span role="status" className="shrink-0 text-xs text-muted-foreground">{status || captionStatus || "Generating captions…"}</span>}
+          {error && <span role="alert" className="shrink-0 text-xs text-destructive">{error}</span>}
+        </TopBar>
 
-        <aside style={{ display: "grid", gap: 12, alignContent: "start" }}>
-          <fieldset style={fieldset}>
-            <legend>Clean up</legend>
-            <label>
-              <input type="checkbox" checked={edits.trimDeadAir} onChange={(e) => set({ trimDeadAir: e.target.checked })} /> Trim dead air
-            </label>
-            <div style={hint}>{edits.deadAir === null ? "Finding dead air…" : `${secs(deadAirMs)} s of silence found`}</div>
-            <label>
-              <input type="checkbox" checked={edits.enhanceAudio} onChange={(e) => set({ enhanceAudio: e.target.checked })} /> Noise reduction and levelling
-            </label>
-          </fieldset>
-          <fieldset style={fieldset}>
-            <legend>Captions</legend>
-            <label>
-              <input type="checkbox" checked={edits.captions.enabled} onChange={(e) => set({ captions: { ...edits.captions, enabled: e.target.checked } })} /> Show captions
-            </label>
-            <label>
-              Style{" "}
-              <select aria-label="Caption style" value={edits.captions.style} onChange={(e) => set({ captions: { ...edits.captions, style: e.target.value as Edits["captions"]["style"] } })}>
-                {CAPTION_STYLES.map((s) => (
-                  <option key={s} value={s}>
-                    {CAPTION_LOOKS[s].name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Position{" "}
-              <select aria-label="Caption position" value={edits.captions.position} onChange={(e) => set({ captions: { ...edits.captions, position: e.target.value as Edits["captions"]["position"] } })}>
-                {CAPTION_POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {captionFiles ? (
-              <div style={{ display: "flex", gap: 12 }} data-testid="caption-cues" data-count={cues.length}>
-                <a href={captionFiles.srt} download="flowcam.srt">
-                  Download SRT
-                </a>
-                <a href={captionFiles.vtt} download="flowcam.vtt">
-                  Download VTT
-                </a>
+        <div className="flex min-h-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <Panel className="p-3">
+              <canvas ref={canvasRef} width={PREVIEW_W} height={PREVIEW_H} aria-label="Preview" className="mx-auto block max-h-[50dvh] w-full rounded-lg bg-black object-contain" />
+              {data.clips.map((c) => (
+                <video
+                  key={c.log.clipId}
+                  ref={(v) => void (v ? videosRef.current.set(c.log.clipId, v) : videosRef.current.delete(c.log.clipId))}
+                  src={urls.get(c.log.clipId)}
+                  preload="auto"
+                  playsInline
+                  hidden
+                />
+              ))}
+              <div className="mt-3 flex items-center gap-3">
+                <Button type="button" size="icon" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying((p) => !p)}>
+                  {playing ? <Pause /> : <Play />}
+                </Button>
+                <RangeInput
+                  aria-label="Playhead"
+                  min={0}
+                  max={Math.max(1, Math.round(total))}
+                  step={10}
+                  value={Math.round(shownTime)}
+                  onChange={(e) => seek(Number(e.target.value))}
+                  className="flex-1"
+                />
+                <span className="text-sm tabular-nums" data-testid="preview-time">
+                  {secs(shownTime)} / {secs(total)} s
+                </span>
               </div>
-            ) : (
-              <div style={hint}>No Transcript yet.</div>
+            </Panel>
+
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 px-1">
+              <div className="flex items-center gap-2">
+                <Switch id="trim-dead-air" checked={edits.trimDeadAir} onCheckedChange={(v) => set({ trimDeadAir: v })} />
+                <Label htmlFor="trim-dead-air">Trim dead air</Label>
+                <span className="text-xs text-muted-foreground">{edits.deadAir === null ? "Finding dead air…" : `${secs(deadAirMs)} s of silence found`}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="show-captions" checked={edits.captions.enabled} onCheckedChange={(v) => set({ captions: { ...edits.captions, enabled: v } })} />
+                <Label htmlFor="show-captions">Show captions</Label>
+                {captionFiles && (
+                  <span className="text-xs text-muted-foreground" data-testid="caption-cues" data-count={cues.length}>
+                    {cues.length} {cues.length === 1 ? "cue" : "cues"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {edit && (
+              <Panel className="grid gap-3 p-3">
+                <div role="toolbar" aria-label="Timeline tools" className="flex flex-wrap items-center gap-1.5">
+                  <Tool label="Split at playhead" icon={<Scissors />} onClick={() => apply(split(edits, playhead))} />
+                  <Tool label="Delete range" icon={<Eraser />} onClick={() => apply(deleteRange(edits, range[0], range[1]))} />
+                  <Tool label="Layout at playhead" icon={<LayoutTemplate />} onClick={() => setTab("layout")} />
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Gauge className="size-4" aria-hidden />
+                        <NativeSelect aria-label="Speed" value={seg?.speed ?? 1} onChange={(e) => apply(setSpeed(edits, selected, Number(e.target.value)))}>
+                          {SPEEDS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}x
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Speed of the selected part</TooltipContent>
+                  </Tooltip>
+                  {selected > 0 && seg && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Blend className="size-4" aria-hidden />
+                          <NativeSelect aria-label="Transition" value={seg.transition} onChange={(e) => apply(setTransition(edits, selected, e.target.value as ClipTransition))}>
+                            {CLIP_TRANSITIONS.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Transition into the selected part</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+                  <Tool label="Undo" icon={<Undo2 />} onClick={undo} disabled={!history.length} />
+                  <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                    Range (s)
+                    <Input type="number" aria-label="Range start" step={0.1} min={0} value={secs(range[0])} onChange={(e) => setRange([Number(e.target.value) * 1000, range[1]])} className="h-8 w-20" />
+                    to
+                    <Input type="number" aria-label="Range end" step={0.1} min={0} value={secs(range[1])} onChange={(e) => setRange([range[0], Number(e.target.value) * 1000])} className="h-8 w-20" />
+                  </div>
+                </div>
+                <Timeline data={data} edits={edits} total={total} playhead={shownTime} selected={selected} onSeek={seek} onSelect={setSelected} />
+                {seg && (
+                  <div role="group" aria-label="Selected part" className="flex flex-wrap items-center gap-3 text-sm">
+                    <span className="font-medium">
+                      Part {selected + 1}: Clip {clipNo(seg.clipId)}, {secs(seg.start)}–{secs(seg.end)} s
+                    </span>
+                    <label className="flex items-center gap-1.5 text-muted-foreground">
+                      Trim start
+                      <Input type="number" aria-label="Trim start" step={0.1} value={secs(seg.start)} onChange={(e) => apply(trim(edits, selected, Number(e.target.value) * 1000, seg.end, durationOf(seg.clipId)))} className="h-8 w-20" />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-muted-foreground">
+                      Trim end
+                      <Input type="number" aria-label="Trim end" step={0.1} value={secs(seg.end)} onChange={(e) => apply(trim(edits, selected, seg.start, Number(e.target.value) * 1000, durationOf(seg.clipId)))} className="h-8 w-20" />
+                    </label>
+                  </div>
+                )}
+              </Panel>
             )}
-          </fieldset>
-          <fieldset style={fieldset}>
-            <legend>Frame</legend>
-            <label>
-              Background{" "}
-              <select aria-label="Background" value={edits.frame.background} onChange={(e) => set({ frame: { ...edits.frame, background: e.target.value as Edits["frame"]["background"] } })}>
-                {BACKGROUNDS.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
+          </div>
+
+          <aside className="w-80 shrink-0 overflow-y-auto border-l bg-sidebar p-4 text-sidebar-foreground">
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="grid h-8 w-full grid-cols-5">
+                {["background", "camera", "audio", "captions", "layout"].map((t) => (
+                  <TabsTrigger key={t} value={t} className="px-1 text-xs capitalize">
+                    {t}
+                  </TabsTrigger>
                 ))}
-              </select>
-            </label>
-            <label>
-              Padding{" "}
-              <input type="range" aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } })} />
-            </label>
-            <label>
-              Shadow{" "}
-              <input type="range" aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } })} />
-            </label>
-          </fieldset>
-          <fieldset style={fieldset}>
-            <legend>Export</legend>
-            <Exporter recordingId={recordingId} heading={false} />
-          </fieldset>
-        </aside>
-      </div>
-    </main>
+              </TabsList>
+
+              <TabsContent value="background" className="grid gap-4 pt-2">
+                <Section title="Background">
+                  <SwatchRow
+                    label="Background"
+                    value={edits.frame.background}
+                    options={BACKGROUNDS.map((b) => ({ value: b, fill: swatchFill(b) }))}
+                    onChange={(b) => set({ frame: { ...edits.frame, background: b } })}
+                  />
+                </Section>
+                <Section title="Padding">
+                  <RangeInput aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } })} />
+                </Section>
+                <Section title="Shadow">
+                  <RangeInput aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } })} />
+                </Section>
+                {/* Corner radius is not an edit yet: the frame's corners are fixed at export (compose.ts). */}
+              </TabsContent>
+
+              <TabsContent value="camera" className="grid gap-4 pt-2">
+                <Section title="Layout">
+                  <p className="text-sm">
+                    At the playhead: <strong>{here}</strong>
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setTab("layout")}>
+                    Change the Layout
+                  </Button>
+                </Section>
+              </TabsContent>
+
+              <TabsContent value="audio" className="grid gap-4 pt-2">
+                <Section title="Clean up">
+                  <div className="flex items-center gap-2">
+                    <Switch id="enhance-audio" checked={edits.enhanceAudio} onCheckedChange={(v) => set({ enhanceAudio: v })} />
+                    <Label htmlFor="enhance-audio">Noise reduction and levelling</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{edits.enhanceAudio ? "On: applied when you export." : "Off: the Microphone is exported as recorded."}</p>
+                </Section>
+              </TabsContent>
+
+              <TabsContent value="captions" className="grid gap-4 pt-2">
+                <Section title="Style">
+                  <SegmentedRow
+                    label="Caption style"
+                    value={edits.captions.style}
+                    options={CAPTION_STYLES.map((s) => ({ value: s, label: CAPTION_LOOKS[s].name }))}
+                    onChange={(style) => set({ captions: { ...edits.captions, style } })}
+                  />
+                </Section>
+                <Section title="Position">
+                  <SegmentedRow
+                    label="Caption position"
+                    value={edits.captions.position}
+                    options={CAPTION_POSITIONS.map((p) => ({ value: p, label: p }))}
+                    onChange={(position) => set({ captions: { ...edits.captions, position } })}
+                  />
+                </Section>
+                <Section title="Caption files">
+                  {captionFiles ? (
+                    <div className="flex gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <a href={captionFiles.srt} download="flowcam.srt">
+                          <Download /> Download SRT
+                        </a>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <a href={captionFiles.vtt} download="flowcam.vtt">
+                          <Download /> Download VTT
+                        </a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No Transcript yet.</p>
+                  )}
+                </Section>
+              </TabsContent>
+
+              <TabsContent value="layout" className="grid gap-4 pt-2">
+                <Section title="Layout from the playhead on">
+                  <div className="flex items-center gap-2">
+                    <NativeSelect aria-label="Layout" value={layoutChoice} onChange={(e) => setLayoutChoice(e.target.value as Layout | "auto")} className="flex-1">
+                      <option value="auto">Follow the Steps</option>
+                      {LAYOUTS.map((l) => (
+                        <option key={l} value={l}>
+                          {l}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <Button type="button" onClick={() => apply(setLayout(edits, playhead, layoutChoice))}>
+                      Set Layout
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {edits.layouts.length} Layout {edits.layouts.length === 1 ? "change" : "changes"} on the Timeline.
+                  </p>
+                </Section>
+              </TabsContent>
+            </Tabs>
+          </aside>
+        </div>
+      </main>
+    </TooltipProvider>
   );
 }
 
-/** Clips in order as blocks, each Step pinned where it was advanced. */
+/** A background's swatch colour: a plain colour or the gradient it is drawn with. */
+function swatchFill(b: Edits["frame"]["background"]) {
+  const f = BACKGROUND_FILLS[b];
+  return typeof f === "string" ? f : `linear-gradient(135deg, ${f[0]}, ${f[1]})`;
+}
+
+/** An icon button with a tooltip; its aria-label is the tooltip's text. */
+function Tool({ label, icon, ...props }: { label: string; icon: React.ReactNode } & Omit<React.ComponentProps<typeof Button>, "children">) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" aria-label={label} {...props}>
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Clips in order as rounded blocks, each Step pinned where it was advanced, with a draggable playhead. */
 function Timeline(props: {
   data: EditableRecording;
   edits: Edits;
@@ -485,6 +574,7 @@ function Timeline(props: {
 }) {
   const { data, edits, total, playhead, selected } = props;
   const ps = pieces(edits);
+  const dragging = useRef(false);
   const pct = (t: number) => `${(t / Math.max(total, 1)) * 100}%`;
   const steps = data.clips.flatMap((c) =>
     c.log.events.flatMap((ev) => {
@@ -497,64 +587,73 @@ function Timeline(props: {
     const at = markAt(ps, l.clipId, l.t);
     return at === null ? [] : [{ at, layout: l.layout }];
   });
+  const seekTo = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    props.onSeek(((e.clientX - r.left) / r.width) * total);
+  };
   return (
     <div
       aria-label="Timeline"
-      style={{ position: "relative", height: 96, marginTop: 12, background: "#f1f3f5", borderRadius: 8, cursor: "pointer", userSelect: "none" }}
-      onClick={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        props.onSeek(((e.clientX - r.left) / r.width) * total);
+      role="group"
+      className="relative h-28 cursor-pointer touch-none rounded-lg bg-muted/60 select-none"
+      onPointerDown={(e) => {
+        dragging.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const part = (e.target as HTMLElement).closest<HTMLElement>("[data-segment]");
+        if (part) props.onSelect(Number(part.dataset.segment));
+        seekTo(e);
       }}
+      onPointerMove={(e) => dragging.current && seekTo(e)}
+      onPointerUp={() => void (dragging.current = false)}
+      onPointerCancel={() => void (dragging.current = false)}
     >
       {ps.map((p, i) => (
         <button
           key={i}
           type="button"
           data-testid="timeline-part"
+          data-segment={p.segment}
           aria-pressed={p.segment === selected}
           title={`Clip ${data.recording.clips.indexOf(p.clipId) + 1}, ${p.speed}x`}
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onSelect(p.segment);
-            const r = e.currentTarget.parentElement!.getBoundingClientRect();
-            props.onSeek(((e.clientX - r.left) / r.width) * total);
-          }}
-          style={{
-            position: "absolute",
-            left: pct(p.at),
-            width: pct(p.length),
-            top: 8,
-            height: 44,
-            border: p.segment === selected ? "2px solid #1c7ed6" : "1px solid #adb5bd",
-            boxShadow: p.transition === "fade" ? "inset 6px 0 0 #000" : undefined,
-            background: data.recording.clips.indexOf(p.clipId) % 2 ? "#d0ebff" : "#e5dbff",
-            borderRadius: 6,
-            overflow: "hidden",
-            fontSize: 12,
-            padding: "0 4px",
-            textAlign: "left",
-            whiteSpace: "nowrap",
-          }}
+          // Pointer clicks are handled by the track (it must own the drag); this is for Enter and Space.
+          onClick={(e) => e.detail === 0 && props.onSelect(p.segment)}
+          style={{ left: pct(p.at), width: pct(p.length) }}
+          className={cn(
+            "absolute top-2 flex h-12 items-center gap-1 overflow-hidden rounded-lg border px-2 text-left text-xs font-medium whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            data.recording.clips.indexOf(p.clipId) % 2 ? "bg-secondary text-secondary-foreground" : "bg-accent text-accent-foreground",
+            p.segment === selected ? "border-2 border-primary" : "border-border",
+            p.transition === "fade" && "border-l-8 border-l-foreground",
+          )}
         >
           Clip {data.recording.clips.indexOf(p.clipId) + 1}
-          {p.speed !== 1 && ` · ${p.speed}x`}
+          {p.speed !== 1 && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-background/70 px-1.5 py-0.5">
+              <Gauge className="size-3" aria-hidden />
+              {p.speed}x
+            </span>
+          )}
         </button>
       ))}
       {steps.map((s, i) => (
-        <span key={i} data-testid="timeline-step" title={`Step ${s.index}`} style={{ position: "absolute", left: pct(s.at), top: 56, fontSize: 11, padding: "2px 4px", background: "#fff3bf", border: "1px solid #fab005", borderRadius: 4 }}>
+        <span
+          key={i}
+          data-testid="timeline-step"
+          title={`Step ${s.index}`}
+          style={{ left: pct(s.at) }}
+          className="pointer-events-none absolute top-16 inline-flex items-center gap-1 rounded-md bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground"
+        >
+          <Flag className="size-3" aria-hidden />
           Step {s.index}
         </span>
       ))}
       {layouts.map((l, i) => (
-        <span key={i} title={`Layout: ${l.layout}`} style={{ position: "absolute", left: pct(l.at), top: 78, fontSize: 10, color: "#5f3dc4" }}>
-          ◆ {l.layout}
+        <span key={i} title={`Layout: ${l.layout}`} style={{ left: pct(l.at) }} className="pointer-events-none absolute top-[88px] inline-flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
+          <Diamond className="size-3" aria-hidden /> {l.layout}
         </span>
       ))}
-      <div style={{ position: "absolute", left: pct(Math.min(playhead, total)), top: 0, bottom: 0, width: 2, background: "#e03131", pointerEvents: "none" }} />
+      <div style={{ left: pct(Math.min(playhead, total)) }} className="pointer-events-none absolute inset-y-0 w-0.5 bg-destructive">
+        <span className="absolute -top-1 left-1/2 size-3 -translate-x-1/2 rounded-full bg-destructive" />
+      </div>
     </div>
   );
 }
-
-const page = { padding: 24, fontFamily: "system-ui", maxWidth: 1400, margin: "0 auto" } as const;
-const fieldset = { border: "1px solid #dee2e6", borderRadius: 8, display: "grid", gap: 6 } as const;
-const hint = { fontSize: 12, color: "#868e96" } as const;

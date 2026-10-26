@@ -1,6 +1,12 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
+import { TopBar } from "@/components/studio/TopBar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { NativeSelect } from "../editing/ui";
 import { runExport } from "./run-export";
 import type { ExportRequest } from "./export.worker";
 
@@ -11,7 +17,11 @@ declare global {
   }
 }
 
-export default function Exporter({ recordingId, heading = true }: { recordingId: string; heading?: boolean }) {
+/**
+ * The Export button and its Dialog: resolution, progress, then the video and its download.
+ * Review uses it in its top bar; the /export page shows it open (`standalone`).
+ */
+export default function Exporter({ recordingId, standalone = false }: { recordingId: string; standalone?: boolean }) {
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,52 +48,65 @@ export default function Exporter({ recordingId, heading = true }: { recordingId:
     }
   }
 
-  const body = (
-    <>
-      <p>
-        <label>
-          Resolution{" "}
-          <select value={resolution} onChange={(e) => setResolution(e.target.value as typeof resolution)} aria-label="Resolution">
+  const dialog = (
+    <Dialog defaultOpen={standalone}>
+      <DialogTrigger asChild>
+        <Button>Export</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Export</DialogTitle>
+          <DialogDescription>MP4 with a Flowcam watermark.</DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center gap-2">
+          <label htmlFor="export-resolution" className="text-sm font-medium">
+            Resolution
+          </label>
+          <NativeSelect id="export-resolution" value={resolution} onChange={(e) => setResolution(e.target.value as typeof resolution)} aria-label="Resolution">
             <option value="1080p">1080p</option>
             {/* Every local user is Free; 4K is a Pro feature (CONTEXT.md: Plan). */}
             <option value="4k" disabled>
               4K (Pro)
             </option>
-          </select>
-        </label>{" "}
-        <span title="4K export comes with Pro" style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#7048e8", color: "#fff" }}>
-          Pro
-        </span>{" "}
-        MP4 with a Flowcam watermark.
-      </p>
-      <button onClick={start} disabled={progress !== null}>
-        Export MP4
-      </button>
-      {progress && (
-        <p>
-          <label>
-            Rendering <progress value={progress[0]} max={progress[1]} />
+          </NativeSelect>
+          <Badge title="4K export comes with Pro">Pro</Badge>
+        </div>
+        <div>
+          <Button onClick={start} disabled={progress !== null}>
+            Export MP4
+          </Button>
+        </div>
+        {progress && (
+          <label className="grid gap-1 text-sm">
+            Rendering
+            <progress value={progress[0]} max={progress[1]} className="h-2 w-full accent-primary" />
           </label>
-        </p>
-      )}
-      {error && <p role="alert">{error}</p>}
-      {url && (
-        <>
-          <video src={url} controls aria-label="Exported video" style={{ width: "100%", marginTop: 16 }} />
-          <p>
-            <a href={url} download="flowcam.mp4">
-              Download flowcam.mp4
-            </a>
+        )}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
           </p>
-        </>
-      )}
-    </>
+        )}
+        {url && (
+          <div className="grid gap-3">
+            <video src={url} controls aria-label="Exported video" className="w-full rounded-lg bg-black" />
+            <Button asChild variant="outline" className="w-fit">
+              <a href={url} download="flowcam.mp4">
+                <Download /> Download flowcam.mp4
+              </a>
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
-  if (!heading) return body;
+  if (!standalone) return dialog;
   return (
-    <main style={{ padding: 32, fontFamily: "system-ui", maxWidth: 960 }}>
-      <h1>Export</h1>
-      {body}
+    <main className="flex min-h-dvh flex-col">
+      <TopBar>
+        <h1 className="text-sm font-medium">Export</h1>
+      </TopBar>
+      <div className="grid flex-1 place-items-center">{dialog}</div>
     </main>
   );
 }
