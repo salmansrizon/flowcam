@@ -202,7 +202,8 @@ export function Recorder() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-      const recording = s.phase === "recording" && !s.busy;
+      // A Clip accepts Steps and Ink as soon as it exists, even while the command that started it finishes.
+      const recording = s.phase === "recording" && s.clip !== null;
       if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && recording && board) {
         e.preventDefault();
         const index = clampStep(s.step + (e.key === "ArrowRight" ? 1 : -1), board.steps.length);
