@@ -10,19 +10,85 @@ import { fromExcalidraw, excalidrawFiles } from "./excalidraw";
 import { TEMPLATES, templateBoard } from "./templates";
 import { dataUrlToBlob, decodeImages, fetchImageAsset, readAsset, writeAsset } from "../presentation/assets";
 import { loadPresentation, newPresentation, savePresentation } from "../presentation/store";
-import styles from "./Editor.module.css";
+import { ArrowDown, ArrowUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { TopBar } from "@/components/studio/TopBar";
+import { Panel } from "@/components/studio/Panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Tool = "select" | Exclude<ElementType, "image"> | "focus";
-const TOOLS: { tool: Tool; label: string; key: string }[] = [
-  { tool: "select", label: "Select", key: "v" },
-  { tool: "rectangle", label: "Rectangle", key: "r" },
-  { tool: "ellipse", label: "Ellipse", key: "o" },
-  { tool: "diamond", label: "Diamond", key: "d" },
-  { tool: "arrow", label: "Arrow", key: "a" },
-  { tool: "text", label: "Text", key: "t" },
-  { tool: "sticky", label: "Sticky", key: "n" },
-  { tool: "freedraw", label: "Freehand", key: "p" },
+// Icons and number key hints are ported from Excaliflow's #bottomToolDock (index.html), in its order.
+const TOOLS: { tool: Tool; label: string; key: string; hint: string; icon: React.ReactNode }[] = [
+  { tool: "select", label: "Select", key: "v", hint: "1", icon: <path d="M4 4l7.07 17 2.51-7.39L21 11.07z" /> },
+  { tool: "rectangle", label: "Rectangle", key: "r", hint: "2", icon: <rect x="3" y="5" width="18" height="14" rx="3" /> },
+  { tool: "diamond", label: "Diamond", key: "d", hint: "3", icon: <path d="M12 3l9 9-9 9-9-9z" /> },
+  { tool: "ellipse", label: "Ellipse", key: "o", hint: "4", icon: <circle cx="12" cy="12" r="9" /> },
+  { tool: "arrow", label: "Arrow", key: "a", hint: "5", icon: <><line x1="5" y1="19" x2="19" y2="5" /><polyline points="9 5 19 5 19 15" /></> },
+  { tool: "freedraw", label: "Freehand", key: "p", hint: "7", icon: <><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /></> },
+  { tool: "text", label: "Text", key: "t", hint: "8", icon: <><polyline points="4 7 4 4 20 4 20 7" /><line x1="9" y1="20" x2="15" y2="20" /><line x1="12" y1="4" x2="12" y2="20" /></> },
+  { tool: "sticky", label: "Sticky", key: "n", hint: "9", icon: <><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" /><polyline points="14 3 14 9 21 9" /></> },
 ];
+
+const selectCls = "h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+const FILLS: [string, string][] = [["hachure", "Sketch"], ["solid", "Solid"], ["none", "None"]];
+const STROKES: [string, string][] = [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]];
+
+function IconButton({ label, children, ...props }: React.ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={label} {...props}>{children}</Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Excaliflow's .section-title inside a .sidebar-section. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-xs font-medium text-muted-foreground">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+/** Excaliflow's .segmented-row / .seg-btn. */
+function Segmented({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void }) {
+  return (
+    <div role="group" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg border bg-muted p-0.5">
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className="h-6 rounded-md text-xs font-medium text-muted-foreground outline-none hover:bg-background/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-accent aria-pressed:font-semibold aria-pressed:text-accent-foreground"
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A live small drawing of a Board, made with the same renderer as the canvas. */
+function BoardThumb({ board, theme, images, version }: { board: Board; theme: ReturnType<typeof themeById>; images: Map<string, ImageBitmap>; version: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const ctx = ref.current!.getContext("2d")!;
+    ctx.setTransform(ref.current!.width / BOARD_WIDTH, 0, 0, ref.current!.width / BOARD_WIDTH, 0, 0);
+    const revealedAt = new Map(board.elements.map((e) => [e.id, -Infinity]));
+    boardRenderer.render(ctx, board, { ...boardView(board, []), revealedAt }, 0, { theme, images });
+  }, [board, theme, images, version]);
+  return <canvas ref={ref} width={320} height={180} aria-hidden className="block aspect-video w-full rounded-md border" />;
+}
 // Shortcuts follow Excaliflow's shortcutMap (number keys and letters), minus the tools Flowcam does not have.
 const KEYS: Record<string, Tool> = { "1": "select", "2": "rectangle", "3": "diamond", "4": "ellipse", "5": "arrow", "7": "freedraw", "8": "text", "9": "sticky", ...Object.fromEntries(TOOLS.map((t) => [t.key, t.tool])) };
 
@@ -69,12 +135,17 @@ export default function Editor() {
   const [tool, setTool] = useState<Tool>("select");
   const [selected, setSelected] = useState<string[]>([]);
   const [activeStep, setActiveStep] = useState<number | null>(null);
-  const [tab, setTab] = useState<"steps" | "script">("steps");
+  const [tab, setTab] = useState<"style" | "steps" | "script">("steps");
   const [drag, setDragState] = useState<Drag | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [morphTo, setMorphTo] = useState<{ id: string; to: Rect } | null>(null);
   const [imagesVersion, setImagesVersion] = useState(0);
   const [urlText, setUrlText] = useState("");
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [boardsOpen, setBoardsOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Pointer events can arrive faster than React re-renders, so handlers read the live drag from a ref.
@@ -398,230 +469,350 @@ export default function Editor() {
   const editEl = editing && (editing.draft ?? board?.elements.find((e) => e.id === editing.id));
   const dragFrom = useRef<number | null>(null);
   const isEmpty = presentation?.boards.length === 1 && isEmptyBoard(presentation.boards[0]);
+  const firstSelected = board?.elements.find((e) => e.id === selected[0]);
+  const restyle = (patch: Partial<Element>) => update((b) => ({ ...b, elements: b.elements.map((e) => (selected.includes(e.id) ? { ...e, ...patch } : e)) }));
 
   return (
-    <div className={styles.editor}>
-      <header className={styles.top}>
-        <h1>Flowcam Studio</h1>
-        <label>
-          Theme{" "}
-          <select aria-label="Theme" value={presentation?.themeId ?? "paper"} onChange={(e) => updateDeck((p) => ({ ...p, themeId: e.target.value }))}>
+    <TooltipProvider>
+      <div className="flex h-screen flex-col bg-muted/40 text-foreground">
+        <TopBar
+          actions={
+            <>
+              <Button asChild variant="outline"><a href="/record">Try</a></Button>
+              <Button asChild><a href="/record">Record</a></Button>
+              <Button variant="outline" disabled>Share <Badge variant="secondary">Pro</Badge></Button>
+            </>
+          }
+        >
+          <Input
+            aria-label="Presentation title"
+            className="h-8 max-w-64 border-transparent bg-transparent font-medium shadow-none hover:border-input"
+            value={presentation?.title ?? ""}
+            onChange={(e) => updateDeck((p) => ({ ...p, title: e.target.value }))}
+          />
+          <select aria-label="Theme" className={selectCls} value={presentation?.themeId ?? "paper"} onChange={(e) => updateDeck((p) => ({ ...p, themeId: e.target.value }))}>
             {THEMES.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
-        </label>
-        <a href="/record">Record</a>
-      </header>
-      {error && (
-        <p role="alert" className={styles.error}>
-          {error} <button onClick={() => setError(null)}>Dismiss</button>
-        </p>
-      )}
-      {status && <p role="status" className={styles.status}>{status}</p>}
-
-      <nav className={styles.boards} aria-label="Boards">
-        <h2>Boards</h2>
-        <ol>
-          {presentation?.boards.map((b, i) => (
-            <li
-              key={b.id}
-              draggable
-              onDragStart={() => (dragFrom.current = i)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragFrom.current !== null) reorderBoard(dragFrom.current, i);
-                dragFrom.current = null;
-              }}
-            >
-              <button aria-current={i === boardIndex} className={styles.boardBtn} onClick={() => goto(i)}>
-                Board {i + 1} ({b.elements.length})
-              </button>
-              <button aria-label={`Move Board ${i + 1} up`} onClick={() => reorderBoard(i, i - 1)}>↑</button>
-              <button aria-label={`Move Board ${i + 1} down`} onClick={() => reorderBoard(i, i + 1)}>↓</button>
-            </li>
-          ))}
-        </ol>
-        <p>
-          <button onClick={() => { updateDeck((p) => addBoard(p, boardIndex)); goto(boardIndex + 1); }}>Add Board</button>{" "}
-          <button
-            onClick={() => {
-              if (board!.elements.length && !window.confirm(`Delete Board ${boardIndex + 1} and its ${board!.elements.length} Elements?`)) return;
-              updateDeck((p) => deleteBoard(p, boardIndex));
-              goto(Math.max(0, boardIndex - 1));
-            }}
-          >
-            Delete Board
-          </button>
-        </p>
-        <label>
-          Transition{" "}
-          <select aria-label="Transition" value={board?.transition ?? "fade"} onChange={(e) => updateDeck((p) => setTransition(p, boardIndex, e.target.value as Transition))}>
-            {TRANSITIONS.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </label>
-        <section aria-label="Start from">
-          <h2>Start from</h2>
-          {isEmpty ? (
-            <ul className={styles.chooser}>
-              {TEMPLATES.map((t) => (
-                <li key={t.id}>
-                  <button onClick={() => applyTemplate(t.id)}>{t.name}</button> <small>{t.group}</small>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <select aria-label="Add Template" value="" onChange={(e) => e.target.value && applyTemplate(e.target.value)}>
-              <option value="">Add a Template Board…</option>
-              {TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-        </section>
-        <label className={styles.file}>
-          Import .excalidraw
-          <input type="file" aria-label="Import .excalidraw" accept=".excalidraw,.json" onChange={(e) => { const f = e.target.files?.[0]; if (f) importExcalidraw(f); e.target.value = ""; }} />
-        </label>
-      </nav>
-
-      <div role="toolbar" aria-label="Drawing tools" className={styles.tools}>
-        {TOOLS.map((t) => (
-          <button key={t.tool} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} onClick={() => setTool(t.tool)}>
-            {t.label}
-          </button>
-        ))}
-        <label className={styles.file}>
-          Upload image
-          <input type="file" aria-label="Upload image" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); e.target.value = ""; }} />
-        </label>
-        <input aria-label="Image URL" placeholder="Image URL" value={urlText} onChange={(e) => setUrlText(e.target.value)} />
-        <button disabled={!urlText.trim()} onClick={addImageFromUrl}>Add image from URL</button>
-      </div>
-
-      <div className={styles.stage}>
-        <canvas
-          ref={canvasRef}
-          width={BOARD_WIDTH}
-          height={BOARD_HEIGHT}
-          className={styles.canvas}
-          aria-label="Board"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={() => setDrag(null)}
-          onDoubleClick={(e) => {
-            if (!board || tool !== "select") return;
-            const r = canvasRef.current!.getBoundingClientRect();
-            const hit = hitTest(board, ((e.clientX - r.left) / r.width) * BOARD_WIDTH, ((e.clientY - r.top) / r.height) * BOARD_HEIGHT);
-            if (hit && TEXTUAL.has(hit.type)) startEdit(hit);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={onDrop}
-        />
-        {editEl && (
-          // Inline text editor, ported from Excaliflow's startInlineEditing / commitInlineEditor: a textarea over the Element.
-          <textarea
-            key={editing!.id}
-            aria-label="Edit text"
-            className={styles.inline}
-            style={{
-              left: `${(editEl.x / BOARD_WIDTH) * 100}%`,
-              top: `${(editEl.y / BOARD_HEIGHT) * 100}%`,
-              width: `${(Math.max(editEl.width, 160) / BOARD_WIDTH) * 100}%`,
-              height: `${(Math.max(editEl.height, 48) / BOARD_HEIGHT) * 100}%`,
-              fontSize: `${(editEl.fontSize / BOARD_WIDTH) * 100}cqw`,
-              color: editEl.strokeColor,
-            }}
-            defaultValue={editEl.text}
-            ref={(ta) => ta?.focus()}
-            onFocus={(e) => e.currentTarget.select()}
-            onBlur={(e) => commitEdit(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") commitEdit(e.currentTarget.value);
-            }}
-          />
+        </TopBar>
+        <h1 className="sr-only">Flowcam Studio</h1>
+        {error && (
+          <p role="alert" className="flex items-center gap-2 bg-destructive/10 px-4 py-1.5 text-sm text-destructive">
+            {error} <Button size="xs" variant="outline" onClick={() => setError(null)}>Dismiss</Button>
+          </p>
         )}
-      </div>
+        {status && <p role="status" className="bg-accent px-4 py-1.5 text-sm text-accent-foreground">{status}</p>}
 
-      <aside className={styles.steps} aria-label="Steps">
-        <div role="tablist" className={styles.tabs}>
-          <button role="tab" aria-selected={tab === "steps"} onClick={() => setTab("steps")}>Steps</button>
-          <button role="tab" aria-selected={tab === "script"} onClick={() => setTab("script")}>Script</button>
-        </div>
-        {tab === "steps" && board && (
-          <>
-            <p className={styles.actions}>
-              <button disabled={!selected.length} onClick={() => { update((b) => addHighlightStep(b, selected)); setActiveStep(board.steps.length); }}>Add Highlight Step</button>
-              <button onClick={() => { setTool("focus"); setMorphTo(null); }} aria-pressed={tool === "focus"}>Add Focus Step</button>
-              <button onClick={() => { update((b) => addFocusStep(b, null)); setActiveStep(board.steps.length); }}>Focus out</button>
-              <button disabled={!selectedEl || selectedEl.type === "arrow"} onClick={() => { const b = boundsOf(selectedEl!); setMorphTo({ id: selectedEl!.id, to: { ...b } }); setTool("select"); }}>Move in a Step</button>
-              {selectedEl?.type === "arrow" && (
-                <>
-                  <button onClick={() => update((b) => addFlowStep(b, selectedEl.id, true))}>Add Flow on Step</button>
-                  <button onClick={() => update((b) => addFlowStep(b, selectedEl.id, false))}>Add Flow off Step</button>
-                </>
-              )}
-            </p>
-            {tool === "focus" && <p>Drag a rectangle on the Board to zoom onto it.</p>}
-            {morphTo && (
-              <p role="group" aria-label="Move in a Step">
-                Drag the Element&apos;s outline to where it should go.{" "}
-                <button onClick={() => { update((b) => addMorphStep(b, morphTo.id, morphTo.to)); setMorphTo(null); setActiveStep(board.steps.length); }}>Confirm move</button>{" "}
-                <button onClick={() => setMorphTo(null)}>Cancel</button>
-              </p>
-            )}
-            <ol>
-              {board.steps.map((s, i) => (
-                <li key={s.id} aria-current={i === activeStep} className={i === activeStep ? styles.active : undefined}>
-                  <button className={styles.stepBtn} onClick={() => setActiveStep(i)}>{stepLabel(board, i)}</button>{" "}
-                  <button aria-label={`Move Step ${i + 1} up`} onClick={() => { update((b) => moveStep(b, i, i - 1)); if (i === activeStep && i > 0) setActiveStep(i - 1); }}>↑</button>
-                  <button aria-label={`Move Step ${i + 1} down`} onClick={() => { update((b) => moveStep(b, i, i + 1)); if (i === activeStep && i < board.steps.length - 1) setActiveStep(i + 1); }}>↓</button>
-                  <button aria-label={`Delete Step ${i + 1}`} onClick={() => { update((b) => deleteStep(b, i)); setActiveStep(null); }}>✕</button>
-                </li>
-              ))}
-            </ol>
-          </>
-        )}
-        {step && activeStep !== null && board && (
-          <section aria-label={`Step ${activeStep + 1}`} className={styles.detail}>
-            <h3>Step {activeStep + 1}</h3>
-            {tab === "script" ? (
-              <textarea aria-label="Script" rows={8} placeholder="Words to say during this Step" value={step.script ?? ""} onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }))} />
-            ) : (
+        <div className="flex min-h-0 flex-1">
+          <nav aria-label="Boards" className={cn("flex shrink-0 flex-col gap-2 border-r bg-background p-2", boardsOpen ? "w-52" : "w-12 items-center")}>
+            <div className="flex items-center justify-between">
+              {boardsOpen && <h2 className="px-1 text-xs font-semibold text-muted-foreground">Boards</h2>}
+              <div className="flex items-center">
+                {boardsOpen && (
+                  <>
+                    <IconButton label="Add Board" onClick={() => { updateDeck((p) => addBoard(p, boardIndex)); goto(boardIndex + 1); }}><Plus /></IconButton>
+                    <IconButton
+                      label="Delete Board"
+                      onClick={() => {
+                        if (board!.elements.length && !window.confirm(`Delete Board ${boardIndex + 1} and its ${board!.elements.length} Elements?`)) return;
+                        updateDeck((p) => deleteBoard(p, boardIndex));
+                        goto(Math.max(0, boardIndex - 1));
+                      }}
+                    >
+                      <Trash2 />
+                    </IconButton>
+                  </>
+                )}
+                <IconButton label={boardsOpen ? "Collapse Boards" : "Expand Boards"} onClick={() => setBoardsOpen((o) => !o)}>
+                  {boardsOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+                </IconButton>
+              </div>
+            </div>
+            {boardsOpen && presentation && (
               <>
-                <label>
-                  Layout{" "}
-                  <select aria-label="Layout" value={step.layout ?? ""} onChange={(e) => update((b) => updateStep(b, activeStep, { layout: (e.target.value || null) as Layout | null }))}>
-                    <option value="">unset</option>
-                    {LAYOUTS.map((l) => (
-                      <option key={l}>{l}</option>
+                <label className="flex items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
+                  Transition
+                  <select aria-label="Transition" className={cn(selectCls, "min-w-0 flex-1")} value={board?.transition ?? "fade"} onChange={(e) => updateDeck((p) => setTransition(p, boardIndex, e.target.value as Transition))}>
+                    {TRANSITIONS.map((t) => (
+                      <option key={t}>{t}</option>
                     ))}
                   </select>
                 </label>
-                {step.kind === "reveal" && (
-                  <>
-                    <label>
-                      {" "}Effect{" "}
-                      <select aria-label="Effect" value={step.effect ?? "fade"} onChange={(e) => update((b) => updateStep(b, activeStep, { effect: e.target.value as "fade" | "draw-on" }))}>
-                        <option value="fade">fade</option>
-                        <option value="draw-on">draw-on</option>
-                      </select>
-                    </label>
-                    {board.steps[activeStep + 1]?.kind === "reveal" && (
-                      <p><button onClick={() => update((b) => mergeReveals(b, activeStep))}>Merge with next</button></p>
-                    )}
-                  </>
-                )}
+                <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-0.5">
+                  {presentation.boards.map((b, i) => (
+                    <li
+                      key={b.id}
+                      className="flex items-start gap-1"
+                      draggable
+                      onDragStart={() => (dragFrom.current = i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragFrom.current !== null) reorderBoard(dragFrom.current, i);
+                        dragFrom.current = null;
+                      }}
+                    >
+                      <button
+                        aria-current={i === boardIndex}
+                        className="flex-1 rounded-lg p-1 text-left text-xs outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-accent aria-[current=true]:text-accent-foreground aria-[current=true]:ring-2 aria-[current=true]:ring-primary"
+                        onClick={() => goto(i)}
+                      >
+                        <BoardThumb board={b} theme={theme} images={images.current} version={imagesVersion} />
+                        <span className="mt-1 block">Board {i + 1} ({b.elements.length})</span>
+                      </button>
+                      <div className="flex flex-col">
+                        <IconButton label={`Move Board ${i + 1} up`} size="icon-xs" onClick={() => reorderBoard(i, i - 1)}><ArrowUp /></IconButton>
+                        <IconButton label={`Move Board ${i + 1} down`} size="icon-xs" onClick={() => reorderBoard(i, i + 1)}><ArrowDown /></IconButton>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               </>
             )}
-          </section>
-        )}
-        {tab === "script" && !step && <p>Pick a Step in the Steps tab to write its Script.</p>}
-      </aside>
-    </div>
+          </nav>
+
+          <main className="flex min-w-0 flex-1 flex-col">
+            {isEmpty && (
+              <section aria-label="Start from" className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
+                <h2 className="mr-1 text-sm font-medium">Start from</h2>
+                {TEMPLATES.map((t) => (
+                  <Button key={t.id} size="sm" variant="outline" title={t.group} onClick={() => applyTemplate(t.id)}>{t.name}</Button>
+                ))}
+              </section>
+            )}
+            <div className="relative min-h-0 flex-1">
+              <div className="absolute inset-4 grid place-items-center [container-type:size]">
+                <div className="relative aspect-video w-[min(100cqw,calc(100cqh*16/9))] [container-type:inline-size]">
+                  <canvas
+                    ref={canvasRef}
+                    width={BOARD_WIDTH}
+                    height={BOARD_HEIGHT}
+                    className="block aspect-video w-full touch-none rounded-lg border bg-white shadow-[var(--panel-shadow)]"
+                    aria-label="Board"
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    onPointerCancel={() => setDrag(null)}
+                    onDoubleClick={(e) => {
+                      if (!board || tool !== "select") return;
+                      const r = canvasRef.current!.getBoundingClientRect();
+                      const hit = hitTest(board, ((e.clientX - r.left) / r.width) * BOARD_WIDTH, ((e.clientY - r.top) / r.height) * BOARD_HEIGHT);
+                      if (hit && TEXTUAL.has(hit.type)) startEdit(hit);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={onDrop}
+                  />
+                  {editEl && (
+                    // Inline text editor, ported from Excaliflow's startInlineEditing / commitInlineEditor: a textarea over the Element.
+                    <textarea
+                      key={editing!.id}
+                      aria-label="Edit text"
+                      className="absolute box-border resize-none overflow-hidden border-2 border-primary bg-white/90 text-center font-sans"
+                      style={{
+                        left: `${(editEl.x / BOARD_WIDTH) * 100}%`,
+                        top: `${(editEl.y / BOARD_HEIGHT) * 100}%`,
+                        width: `${(Math.max(editEl.width, 160) / BOARD_WIDTH) * 100}%`,
+                        height: `${(Math.max(editEl.height, 48) / BOARD_HEIGHT) * 100}%`,
+                        fontSize: `${(editEl.fontSize / BOARD_WIDTH) * 100}cqw`,
+                        color: editEl.strokeColor,
+                      }}
+                      defaultValue={editEl.text}
+                      ref={(ta) => ta?.focus()}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onBlur={(e) => commitEdit(e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") commitEdit(e.currentTarget.value);
+                      }}
+                    />
+                  )}
+                  {/* Excaliflow's floating tool island (#bottomToolDock, .glass-panel, .dock-tool-btn, .dock-key). */}
+                  <Panel role="toolbar" aria-label="Drawing tools" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 p-1">
+                    {TOOLS.map((t) => (
+                      <Tooltip key={t.tool}>
+                        <TooltipTrigger asChild>
+                          <button
+                            aria-label={t.label}
+                            aria-pressed={tool === t.tool}
+                            onClick={() => setTool(t.tool)}
+                            className="relative grid size-9 place-items-center rounded-lg border border-transparent text-muted-foreground outline-none transition hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 aria-pressed:bg-accent aria-pressed:text-accent-foreground"
+                          >
+                            <svg aria-hidden viewBox="0 0 24 24" className="size-[17px] fill-none stroke-current stroke-[1.85]" strokeLinecap="round" strokeLinejoin="round">{t.icon}</svg>
+                            <span aria-hidden className="pointer-events-none absolute right-[3px] bottom-0.5 text-[9px] leading-none font-semibold opacity-70">{t.hint}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t.label} ({t.key.toUpperCase()} or {t.hint})</TooltipContent>
+                      </Tooltip>
+                    ))}
+                    <div aria-hidden className="mx-1 h-5 w-px bg-border" />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1">Insert <ChevronDown /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="top" align="end">
+                        <DropdownMenuItem onSelect={() => uploadRef.current?.click()}>Upload image…</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setUrlOpen(true)}>Image from URL…</DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Template</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {TEMPLATES.map((t) => (
+                              <DropdownMenuItem key={t.id} onSelect={() => applyTemplate(t.id)}>{t.name}</DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => importRef.current?.click()}>Import .excalidraw…</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </Panel>
+                </div>
+              </div>
+            </div>
+            <input ref={uploadRef} type="file" hidden aria-label="Upload image" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); e.target.value = ""; }} />
+            <input ref={importRef} type="file" hidden aria-label="Import .excalidraw" accept=".excalidraw,.json" onChange={(e) => { const f = e.target.files?.[0]; if (f) importExcalidraw(f); e.target.value = ""; }} />
+            <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Insert from a web address</DialogTitle></DialogHeader>
+                <Input aria-label="Image URL" placeholder="Image URL" value={urlText} onChange={(e) => setUrlText(e.target.value)} />
+                <DialogFooter>
+                  <Button disabled={!urlText.trim()} onClick={() => { setUrlOpen(false); addImageFromUrl(); }}>Add image from URL</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </main>
+
+          <aside aria-label="Steps" className={cn("flex shrink-0 flex-col border-l bg-background", panelOpen ? "w-80" : "w-12 items-center p-2")}>
+            {!panelOpen && <IconButton label="Expand panel" onClick={() => setPanelOpen(true)}><PanelRightOpen /></IconButton>}
+            {panelOpen && (
+              <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="min-h-0 flex-1 gap-0">
+                <div className="flex items-center justify-between gap-2 border-b p-2">
+                  <TabsList>
+                    <TabsTrigger value="style">Style</TabsTrigger>
+                    <TabsTrigger value="steps">Steps</TabsTrigger>
+                    <TabsTrigger value="script">Script</TabsTrigger>
+                  </TabsList>
+                  <IconButton label="Collapse panel" onClick={() => setPanelOpen(false)}><PanelRightClose /></IconButton>
+                </div>
+
+                <TabsContent value="style" className="flex flex-col gap-4 overflow-y-auto p-3">
+                  {!firstSelected ? (
+                    <p className="text-sm text-muted-foreground">Select an Element on the Board to change its look.</p>
+                  ) : (
+                    <>
+                      {/* Excaliflow's .swatch-row / .color-swatch, filled from the Theme's palette. */}
+                      <Section title="Stroke">
+                        <div role="group" aria-label="Stroke colour" className="flex flex-wrap gap-1.5 py-0.5">
+                          {theme.palette.map((c) => (
+                            <button
+                              key={c}
+                              aria-label={`Stroke ${c}`}
+                              aria-pressed={firstSelected.strokeColor === c}
+                              style={{ background: c }}
+                              onClick={() => restyle({ strokeColor: c })}
+                              className="size-6 rounded-md border outline-none transition hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary aria-pressed:ring-offset-2 aria-pressed:ring-offset-background"
+                            />
+                          ))}
+                        </div>
+                      </Section>
+                      <Section title="Fill">
+                        <Segmented label="Fill style" value={firstSelected.fillStyle} options={FILLS} onChange={(v) => restyle({ fillStyle: v as Element["fillStyle"] })} />
+                      </Section>
+                      <Section title="Stroke style">
+                        <Segmented label="Stroke style" value={firstSelected.strokeStyle} options={STROKES} onChange={(v) => restyle({ strokeStyle: v as Element["strokeStyle"] })} />
+                      </Section>
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="steps" className="flex min-h-0 flex-col gap-2 overflow-y-auto p-3">
+                  {board && (
+                    <>
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" disabled={!selected.length} onClick={() => { update((b) => addHighlightStep(b, selected)); setActiveStep(board.steps.length); }}>Add Highlight Step</Button>
+                        <Button size="sm" variant="outline" onClick={() => { setTool("focus"); setMorphTo(null); }} aria-pressed={tool === "focus"} className="aria-pressed:bg-accent aria-pressed:text-accent-foreground">Add Focus Step</Button>
+                        <Button size="sm" variant="outline" onClick={() => { update((b) => addFocusStep(b, null)); setActiveStep(board.steps.length); }}>Focus out</Button>
+                        <Button size="sm" variant="outline" disabled={!selectedEl || selectedEl.type === "arrow"} onClick={() => { const b = boundsOf(selectedEl!); setMorphTo({ id: selectedEl!.id, to: { ...b } }); setTool("select"); }}>Move in a Step</Button>
+                        {selectedEl?.type === "arrow" && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => update((b) => addFlowStep(b, selectedEl.id, true))}>Add Flow on Step</Button>
+                            <Button size="sm" variant="outline" onClick={() => update((b) => addFlowStep(b, selectedEl.id, false))}>Add Flow off Step</Button>
+                          </>
+                        )}
+                      </div>
+                      {tool === "focus" && <p className="text-sm text-muted-foreground">Drag a rectangle on the Board to zoom onto it.</p>}
+                      {morphTo && (
+                        <div role="group" aria-label="Move in a Step" className="flex flex-col gap-1.5 rounded-lg bg-accent p-2 text-sm text-accent-foreground">
+                          Drag the Element&apos;s outline to where it should go.
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={() => { update((b) => addMorphStep(b, morphTo.id, morphTo.to)); setMorphTo(null); setActiveStep(board.steps.length); }}>Confirm move</Button>
+                            <Button size="sm" variant="outline" onClick={() => setMorphTo(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      )}
+                      <ol className="m-0 flex list-none flex-col gap-0.5 p-0">
+                        {board.steps.map((s, i) => (
+                          <li key={s.id} aria-current={i === activeStep} className="flex items-center gap-0.5 rounded-lg pl-1 aria-[current=true]:bg-accent aria-[current=true]:text-accent-foreground">
+                            <button className="min-w-0 flex-1 truncate rounded-md py-1 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [li[aria-current=true]_&]:font-semibold" onClick={() => setActiveStep(i)}>{stepLabel(board, i)}</button>
+                            <IconButton label={`Move Step ${i + 1} up`} size="icon-xs" onClick={() => { update((b) => moveStep(b, i, i - 1)); if (i === activeStep && i > 0) setActiveStep(i - 1); }}><ArrowUp /></IconButton>
+                            <IconButton label={`Move Step ${i + 1} down`} size="icon-xs" onClick={() => { update((b) => moveStep(b, i, i + 1)); if (i === activeStep && i < board.steps.length - 1) setActiveStep(i + 1); }}><ArrowDown /></IconButton>
+                            <IconButton label={`Delete Step ${i + 1}`} size="icon-xs" onClick={() => { update((b) => deleteStep(b, i)); setActiveStep(null); }}><X /></IconButton>
+                          </li>
+                        ))}
+                      </ol>
+                      {step && activeStep !== null && (
+                        <section aria-label={`Step ${activeStep + 1}`} className="flex flex-col gap-2 border-t pt-2">
+                          <h3 className="text-xs font-medium text-muted-foreground">Step {activeStep + 1}</h3>
+                          <label className="flex items-center justify-between gap-2 text-sm">
+                            Layout
+                            <select aria-label="Layout" className={selectCls} value={step.layout ?? ""} onChange={(e) => update((b) => updateStep(b, activeStep, { layout: (e.target.value || null) as Layout | null }))}>
+                              <option value="">unset</option>
+                              {LAYOUTS.map((l) => (
+                                <option key={l}>{l}</option>
+                              ))}
+                            </select>
+                          </label>
+                          {step.kind === "reveal" && (
+                            <>
+                              <label className="flex items-center justify-between gap-2 text-sm">
+                                Effect
+                                <select aria-label="Effect" className={selectCls} value={step.effect ?? "fade"} onChange={(e) => update((b) => updateStep(b, activeStep, { effect: e.target.value as "fade" | "draw-on" }))}>
+                                  <option value="fade">fade</option>
+                                  <option value="draw-on">draw-on</option>
+                                </select>
+                              </label>
+                              {board.steps[activeStep + 1]?.kind === "reveal" && (
+                                <Button size="sm" variant="outline" onClick={() => update((b) => mergeReveals(b, activeStep))}>Merge with next</Button>
+                              )}
+                            </>
+                          )}
+                        </section>
+                      )}
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="script" className="flex flex-col gap-2 p-3">
+                  {step && activeStep !== null ? (
+                    <>
+                      <h3 className="text-xs font-medium text-muted-foreground">Step {activeStep + 1}</h3>
+                      <textarea
+                        aria-label="Script"
+                        rows={8}
+                        placeholder="Words to say during this Step"
+                        className="w-full rounded-lg border border-input bg-background p-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        value={step.script ?? ""}
+                        onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }))}
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Pick a Step in the Steps tab to write its Script.</p>
+                  )}
+                </TabsContent>
+              </Tabs>
+            )}
+          </aside>
+        </div>
+      </div>
+    </TooltipProvider>
   );
 }
