@@ -1,4 +1,16 @@
-import { BOARD_HEIGHT, BOARD_WIDTH, LOG_SCHEMA_VERSION, type ClipLog, type LogEvent } from "@flowcam/domain";
+import {
+  BOARD_HEIGHT,
+  BOARD_WIDTH,
+  LOG_SCHEMA_VERSION,
+  presentationViewAt,
+  type ClipLog,
+  type Layout,
+  type LogEvent,
+  type Presentation,
+  type PresentationView,
+  type Rect,
+  type Step,
+} from "@flowcam/domain";
 
 // Pure rules of a Presented Recording, kept apart from the browser APIs so they can be unit tested.
 
@@ -20,8 +32,37 @@ export function transition(phase: Phase, cmd: Command): Phase | null {
   }
 }
 
-/** A Step index is the number of Steps shown: 0 to steps.length. */
-export const clampStep = (index: number, stepCount: number) => Math.max(0, Math.min(index, stepCount));
+export type Move = { type: "step"; index: number } | { type: "board"; index: number };
+
+/**
+ * What → (dir 1) or ← (dir -1) logs: the next or previous Step on this Board, else a move to the next or previous
+ * Board (which shows the Steps `presentationViewAt` kept for it); null at either end of the Presentation.
+ */
+export function navigate(presentation: Presentation, pv: PresentationView, dir: 1 | -1): Move | null {
+  const step = pv.view.stepIndex + dir;
+  if (step >= 0 && step <= presentation.boards[pv.boardIndex].steps.length) return { type: "step", index: step };
+  const board = pv.boardIndex + dir;
+  return board >= 0 && board < presentation.boards.length ? { type: "board", index: board } : null;
+}
+
+/** The Step being presented: the latest shown on the current Board, or null before its first Step. */
+export const currentStep = (presentation: Presentation, pv: PresentationView): Step | null =>
+  presentation.boards[pv.boardIndex].steps[pv.view.stepIndex - 1] ?? null;
+
+/** Next-Step preview: the view after the next →, and the Step it presents; null at the end. */
+export function upcoming(presentation: Presentation, log: ClipLog): { view: PresentationView; step: Step | null } | null {
+  const move = navigate(presentation, presentationViewAt(presentation, log, Infinity), 1);
+  if (!move) return null;
+  const view = presentationViewAt(presentation, { ...log, events: [...log.events, { ...move, t: log.events.at(-1)?.t ?? 0 }] }, Infinity);
+  return { view, step: currentStep(presentation, view) };
+}
+
+/** Where the Board sits in the Presenter View for a Layout, in Board units; matches `composeFrame` in export/compose.ts. */
+export function boardArea(layout: Layout): Rect {
+  if (layout !== "side-by-side") return { x: 0, y: 0, width: BOARD_WIDTH, height: BOARD_HEIGHT };
+  const height = (1220 * BOARD_HEIGHT) / BOARD_WIDTH;
+  return { x: 40, y: (BOARD_HEIGHT - height) / 2, width: 1220, height };
+}
 
 /** Pointer events are logged at most about 30 times a second. */
 export const POINTER_INTERVAL_MS = 1000 / 30;
