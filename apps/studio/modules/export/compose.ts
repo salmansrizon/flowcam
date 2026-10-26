@@ -31,6 +31,7 @@ import { cueAt, cuesFor, drawCaption, type Transcript } from "../captions/captio
 import { fadeAt, layoutAt, outputDuration, pieces, toSource, type Background, type Edits } from "../editing/edits";
 import { buildProgram, enhance, type ClipAudio } from "./audio";
 import { boardArea } from "./geometry";
+import { decodeImages, imageIdsOf } from "../presentation/assets";
 
 export const FPS = 30;
 
@@ -78,6 +79,8 @@ export interface FrameInput {
   log: ClipLog;
   /** Clip time. */
   tMs: number;
+  /** Decoded Board Images by `imageId`. */
+  images?: ReadonlyMap<string, CanvasImageSource>;
   camera: Camera | null;
   /** The Timeline's Layout; "auto" follows the Steps. */
   layout: Layout | "auto";
@@ -98,7 +101,7 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   const pv = presentationViewAt(f.presentation, f.log, f.tMs);
   const board = f.presentation.boards[pv.boardIndex];
   const layout = f.layout === "auto" ? pv.view.layout : f.layout;
-  const env = { theme: themeById(f.presentation.themeId), images: new Map() };
+  const env = { theme: themeById(f.presentation.themeId), images: f.images ?? new Map() };
 
   // Background and the framed picture's place in it, keeping 16:9.
   const fill = BACKGROUND_FILLS[f.frame.background];
@@ -254,6 +257,7 @@ export async function exportRecording(
   const inputs = new Map(clips.map((c) => [c.log.clipId, new Input({ source: new BlobSource(c.media), formats: ALL_FORMATS })]));
   const ps = pieces(edits).filter((p) => byId.has(p.clipId));
   const cues = transcript && edits.captions.enabled ? cuesFor(ps, transcript) : [];
+  const images = await decodeImages(imageIdsOf(presentation));
 
   try {
     const videoCodec = await getFirstEncodableVideoCodec(["avc", "vp9", "av1"], { width, height });
@@ -295,6 +299,7 @@ export async function exportRecording(
         presentation,
         log: byId.get(src.clipId)!.log,
         tMs: src.t,
+        images,
         camera: wrapped ? { image: wrapped.canvas, width: wrapped.canvas.width, height: wrapped.canvas.height } : null,
         layout: layoutAt(edits, order, src.clipId, src.t),
         frame: edits.frame,

@@ -8,6 +8,7 @@ import { CAPTION_LOOKS, cueAt, cuesFor, toSrt, toVtt } from "../captions/caption
 import { transcribe } from "../captions/transcribe";
 import { composeFrame, decodeMicrophone } from "../export/compose";
 import Exporter from "../export/Exporter";
+import { decodeImages, imageIdsOf } from "../presentation/assets";
 import { detectDeadAir } from "./dead-air";
 import {
   BACKGROUNDS,
@@ -41,6 +42,10 @@ const secs = (ms: number) => (ms / 1000).toFixed(2);
 
 export default function Review({ recordingId, edit }: { recordingId: string; edit: boolean }) {
   const [data, setData] = useState<EditableRecording | null>(null);
+  const images = useRef(new Map<string, ImageBitmap>());
+  useEffect(() => {
+    if (data) void decodeImages(imageIdsOf(data.presentation), images.current);
+  }, [data]);
   const [edits, setEdits] = useState<Edits | null>(null);
   const [history, setHistory] = useState<Edits[]>([]);
   const [status, setStatus] = useState("Loading the Recording…");
@@ -211,6 +216,7 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
           presentation: data.presentation,
           log: logs.get(src.clipId)!,
           tMs: src.t,
+          images: images.current,
           camera: v && v.videoWidth ? { image: v, width: v.videoWidth, height: v.videoHeight } : null,
           layout: layoutAt(edits, order, src.clipId, src.t),
           frame: edits.frame,

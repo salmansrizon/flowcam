@@ -1,5 +1,7 @@
+import type { Presentation } from "@flowcam/domain";
+
 // Images live in OPFS as assets/<sha256 hex> (ADR 0002); `Element.imageId` is that hash.
-// Shared by Authoring now, and by the recorder and export later.
+// Shared by Authoring, the recorder, the Review preview and export.
 
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -53,4 +55,9 @@ export async function fetchImageAsset(url: string): Promise<string> {
 
 export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return (await fetch(dataUrl)).blob();
+}
+
+/** Ids of every Image in the Presentation, for `decodeImages`. */
+export function imageIdsOf(p: Presentation): string[] {
+  return p.boards.flatMap((b) => b.elements.flatMap((e) => (e.type === "image" && e.imageId ? [e.imageId] : [])));
 }
