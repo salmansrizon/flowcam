@@ -9,12 +9,11 @@ import { openCrashSafeFile } from "./opfs-writer";
 //   recordings/<recordingId>/clips/<clipId>/media.mp4   fragmented MP4, Camera + Microphone
 //   recordings/<recordingId>/clips/<clipId>/log.json    ClipLog
 
-/** recordings/<id>/recording.json. `clips` lists Clip ids in play order. */
+/** recordings/<id>/recording.json. `clips` lists Clip ids in play order; each Clip's log says which Board it began on. */
 export interface RecordingManifest {
   version: 1;
   id: string;
   presentationId: string;
-  boardId: string;
   /** ISO 8601. */
   createdAt: string;
   clips: string[];
@@ -22,10 +21,10 @@ export interface RecordingManifest {
 
 export function parseRecording(v: unknown): RecordingManifest {
   const o = (typeof v === "object" && v !== null ? v : {}) as Record<string, unknown>;
-  const strings = ["id", "presentationId", "boardId", "createdAt"].every((k) => typeof o[k] === "string");
+  const strings = ["id", "presentationId", "createdAt"].every((k) => typeof o[k] === "string");
   const clips = Array.isArray(o.clips) && o.clips.every((c) => typeof c === "string") && new Set(o.clips).size === o.clips.length;
   if (o.version !== 1 || !strings || Number.isNaN(Date.parse(o.createdAt as string)) || !clips) {
-    throw new InvalidDataError("recording: expected { version: 1, id, presentationId, boardId, createdAt (ISO), clips: unique string[] }");
+    throw new InvalidDataError("recording: expected { version: 1, id, presentationId, createdAt (ISO), clips: unique string[] }");
   }
   return o as unknown as RecordingManifest;
 }
