@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { runExport } from "./run-export";
+import type { ExportRequest } from "./export.worker";
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ export default function Exporter({ recordingId, heading = true }: { recordingId:
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resolution, setResolution] = useState<NonNullable<ExportRequest["resolution"]>>("1080p");
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
@@ -27,7 +29,7 @@ export default function Exporter({ recordingId, heading = true }: { recordingId:
     setUrl(null);
     setProgress([0, 1]);
     try {
-      const { video } = await runExport({ recordingId }, (done, total) => setProgress([done, total]));
+      const { video } = await runExport({ recordingId, resolution }, (done, total) => setProgress([done, total]));
       setUrl(URL.createObjectURL(video));
     } catch (e) {
       setError(`Export failed: ${e instanceof Error ? e.message : e}`);
@@ -41,7 +43,7 @@ export default function Exporter({ recordingId, heading = true }: { recordingId:
       <p>
         <label>
           Resolution{" "}
-          <select defaultValue="1080p" aria-label="Resolution">
+          <select value={resolution} onChange={(e) => setResolution(e.target.value as typeof resolution)} aria-label="Resolution">
             <option value="1080p">1080p</option>
             {/* Every local user is Free; 4K is a Pro feature (CONTEXT.md: Plan). */}
             <option value="4k" disabled>
