@@ -1,7 +1,7 @@
 // Ported from Excaliflow (Apache-2.0), see ../NOTICE: advanced_llm_apps/excaliflow/index.html @ 40b16b6.
 // Arrow geometry, graph depth and Flow particles. Elbow arrows are not part of the domain model, so they are dropped.
 import type { Binding, Canvas2D, Element } from "@flowcam/domain";
-import { applyDashStyle, mulberry32, resolveStrokeColor } from "./shapes";
+import { applyDashStyle, applyDrawOn, mulberry32, resolveStrokeColor, type Look } from "./shapes";
 
 /** Excaliflow's flowSpeed setting (1.0) times its 0.55 base speed: loops per second. */
 const FLOW_SPEED = 1.0 * 0.55;
@@ -222,8 +222,8 @@ function drawFlowParticleAt(ctx: Canvas2D, geom: ArrowGeometry, dist: number, co
 }
 
 /** Draws one arrow (shaft with hand-drawn extra passes, arrowhead) and, when `flowing`, its Flow particles at `timeMs`. */
-export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeometry, depth: number, timeMs: number, flowing: boolean) {
-  const strokeColor = resolveStrokeColor(el.strokeColor);
+export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeometry, depth: number, timeMs: number, flowing: boolean, look: Look, progress = 1) {
+  const strokeColor = resolveStrokeColor(el.strokeColor, look);
   const sw = Number(el.strokeWidth) || 2.2;
 
   ctx.save();
@@ -232,6 +232,7 @@ export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeo
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = el.strokeStyle !== "solid" ? sw + 0.5 : sw;
   applyDashStyle(ctx, el.strokeStyle, sw);
+  if (progress < 1) applyDrawOn(ctx, geom.totalLen * 1.15 + 1, progress);
 
   const roughness = Number(el.roughness ?? 0.85);
   const isCartoon = roughness > 1.2;
@@ -278,6 +279,8 @@ export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeo
 
   // Excalidraw solid arrowhead cap (~25 degree spread)
   ctx.setLineDash([]);
+  const shaftAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = shaftAlpha * (progress < 1 ? Math.max(0, (progress - 0.85) / 0.15) : 1);
   const tip = geom.tipAngle;
   const headLen = Math.max(11, sw * 4.6);
   const spread = 0.44;
@@ -299,7 +302,8 @@ export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeo
     ctx.restore();
   }
 
-  if (flowing && geom.totalLen > 24) {
+  ctx.globalAlpha = shaftAlpha;
+  if (flowing && progress >= 1 && geom.totalLen > 24) {
     const packetCount = Math.max(1, Math.min(4, Math.round(geom.totalLen / 150)));
     const hopOffset = -depth * 0.38;
     for (let k = 0; k < packetCount; k++) {
