@@ -25,7 +25,7 @@ import {
   setSpeed,
   setTransition,
   split,
-  toOutput,
+  markAt,
   toSource,
   trim,
   type ClipTransition,
@@ -483,12 +483,12 @@ function Timeline(props: {
   const steps = data.clips.flatMap((c) =>
     c.log.events.flatMap((ev) => {
       if (ev.type !== "step") return [];
-      const at = toOutput(ps, c.log.clipId, ev.t);
+      const at = markAt(ps, c.log.clipId, ev.t);
       return at === null ? [] : [{ at, index: ev.index }];
     }),
   );
   const layouts = edits.layouts.flatMap((l) => {
-    const at = toOutput(ps, l.clipId, l.t);
+    const at = markAt(ps, l.clipId, l.t);
     return at === null ? [] : [{ at, layout: l.layout }];
   });
   return (

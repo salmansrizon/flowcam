@@ -154,7 +154,9 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   }
   expect(meta.width).toBe(1920);
   expect(meta.height).toBe(1080);
-  expect(Math.abs(meta.duration - edited)).toBeLessThan(0.1);
+  // The MP4 lasts as long as its longer track: video rounds up to a whole frame (up to 33 ms) and the
+  // audio encoder pads its last frame (about 20–50 ms), so a run can land just over 0.1 s.
+  expect(Math.abs(meta.duration - edited)).toBeLessThan(0.15);
 });
 
 test("4K export is shown as Pro and cannot be chosen", async ({ page }) => {

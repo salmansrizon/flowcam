@@ -13,6 +13,7 @@ import {
   setTransition,
   split,
   toOutput,
+  markAt,
   toSource,
   trim,
   type Edits,
@@ -44,6 +45,13 @@ describe("pieces and time mapping", () => {
     expect(toOutput(ps, "a", 2500)).toBe(1000);
     expect(toSource(ps, 1000)).toMatchObject({ clipId: "a", t: 2500 });
     expect(toSource(ps, 2600)).toMatchObject({ clipId: "b", t: 100 });
+  });
+
+  it("pins a Step inside cut time to where its Clip resumes", () => {
+    const ps = pieces({ ...base(), deadAir: [{ clipId: "a", start: 0, end: 1500 }, { clipId: "b", start: 1500, end: 2000 }] });
+    expect(markAt(ps, "a", 200)).toBe(0); // Cut from the start: shows where Clip a begins playing.
+    expect(markAt(ps, "a", 2000)).toBe(toOutput(ps, "a", 2000));
+    expect(markAt(ps, "b", 1800)).toBeNull(); // Nothing of Clip b plays after it.
   });
 
   it("maps through speed changes both ways", () => {

@@ -202,6 +202,18 @@ export function toOutput(ps: readonly Piece[], clipId: string, t: number): numbe
 }
 
 /**
+ * Where a Clip moment such as a Step or Layout change shows on the Timeline. A moment inside cut time
+ * (dead air, a deleted range) still takes effect, so it pins to where the Clip resumes; null only if nothing
+ * of the Clip plays after it.
+ */
+export function markAt(ps: readonly Piece[], clipId: string, t: number): number | null {
+  const at = toOutput(ps, clipId, t);
+  if (at !== null) return at;
+  const next = ps.filter((p) => p.clipId === clipId && p.start > t).sort((a, b) => a.start - b.start)[0];
+  return next ? next.at : null;
+}
+
+/**
  * How dark the fade between pieces makes output time `t`: 0 = not at all, 1 = black.
  * A fade dips to black over FADE_MS centred on the start of a piece whose transition is "fade".
  */
