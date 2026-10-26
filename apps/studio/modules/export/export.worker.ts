@@ -1,8 +1,8 @@
 import { boardRenderer } from "@flowcam/renderer";
-import { loadPresentation, readClipLog, readClipMedia, readRecording } from "../recording/storage";
-import { exportRecording } from "./compose";
+import { loadEditable } from "../editing/store";
+import { exportRecording, type Resolution } from "./compose";
 
-export type ExportRequest = { recordingId: string; frameHashes?: boolean };
+export type ExportRequest = { recordingId: string; frameHashes?: boolean; resolution?: Resolution };
 export type ExportReply =
   | { type: "progress"; done: number; total: number }
   | { type: "done"; video: Blob; frameHashes: string[] }
@@ -18,19 +18,11 @@ async function sha256(canvas: OffscreenCanvas): Promise<string> {
 
 self.onmessage = async ({ data: req }: MessageEvent<ExportRequest>) => {
   try {
-    const recording = await readRecording(req.recordingId);
-    // The current Presentation, so edits made after recording appear in the export (ADR 0002).
-    const presentation = await loadPresentation();
-    if (presentation.id !== recording.presentationId) throw new Error("The Presentation this Recording was made from no longer exists.");
-    const clips = await Promise.all(
-      recording.clips.map(async (id) => ({
-        log: await readClipLog(recording.id, id),
-        media: await readClipMedia(recording.id, id),
-      })),
-    );
+    const { presentation, clips, edits, transcript } = await loadEditable(req.recordingId);
     const frameHashes: string[] = [];
-    const video = await exportRecording(boardRenderer, presentation, clips, {
-      watermark: true, // Every M1 export is Free.
+    const video = await exportRecording(boardRenderer, presentation, clips, edits, transcript, {
+      watermark: true, // Every local user is Free (ADR 0005).
+      resolution: req.resolution,
       onProgress: (done, total) => reply({ type: "progress", done, total }),
       onFrame: req.frameHashes ? async (canvas) => void frameHashes.push(await sha256(canvas)) : undefined,
     });

@@ -34,9 +34,13 @@ const recordedSeconds = (page: Page, recordingId: string) =>
   }, recordingId);
 
 async function exportAndCheck(page: Page, recordingId: string, minSeconds: number) {
-  const expectedSeconds = await recordedSeconds(page, recordingId);
-  expect(expectedSeconds).toBeGreaterThanOrEqual(minSeconds);
-  await page.getByRole("link", { name: "Export MP4" }).click();
+  expect(await recordedSeconds(page, recordingId)).toBeGreaterThanOrEqual(minSeconds);
+  // Stop leads to Review, which trims dead air by default: the MP4 is as long as the edited timeline.
+  await page.getByRole("link", { name: "Review and export" }).click();
+  await expect(page.getByText(/s of silence found/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("save-state")).toHaveText("All changes saved");
+  const expectedSeconds = Number(await page.getByTestId("edited-duration").textContent());
+  expect(expectedSeconds).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Export MP4" }).click();
   const video = page.getByLabel("Exported video");
   await expect(video).toBeVisible({ timeout: 600_000 });
@@ -57,6 +61,13 @@ async function exportAndCheck(page: Page, recordingId: string, minSeconds: numbe
   expect(meta.height).toBe(1080);
   expect(Math.abs(meta.duration - expectedSeconds)).toBeLessThan(0.2);
 }
+
+test.beforeEach(async ({ page }) => {
+  // Captions are on by default; an empty stub Transcript keeps Whisper's model download out of these tests.
+  await page.addInitScript(() => {
+    window.flowcamTranscribe = async () => ({ version: 1, clips: {} });
+  });
+});
 
 test("a three-Clip Recording exports a playable 1080p MP4, and exporting twice gives identical frames", async ({ page }) => {
   test.setTimeout(180_000);

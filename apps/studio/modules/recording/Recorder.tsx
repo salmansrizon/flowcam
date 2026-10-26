@@ -267,7 +267,7 @@ export function Recorder() {
           Recording <code data-testid="recording-id">{recordingId}</code> is in this browser&apos;s storage.
         </p>
         <p>
-          <a href={`/export?recording=${recordingId}`}>Export MP4</a>
+          <a href={`/review?recording=${recordingId}`}>Review and export</a>
         </p>
       </main>
     );
