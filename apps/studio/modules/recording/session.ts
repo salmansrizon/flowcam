@@ -4,11 +4,9 @@ import {
   LOG_SCHEMA_VERSION,
   presentationViewAt,
   type ClipLog,
-  type Layout,
   type LogEvent,
   type Presentation,
   type PresentationView,
-  type Rect,
   type Step,
 } from "@flowcam/domain";
 
@@ -57,12 +55,7 @@ export function upcoming(presentation: Presentation, log: ClipLog): { view: Pres
   return { view, step: currentStep(presentation, view) };
 }
 
-/** Where the Board sits in the Presenter View for a Layout, in Board units; matches `composeFrame` in export/compose.ts. */
-export function boardArea(layout: Layout): Rect {
-  if (layout !== "side-by-side") return { x: 0, y: 0, width: BOARD_WIDTH, height: BOARD_HEIGHT };
-  const height = (1220 * BOARD_HEIGHT) / BOARD_WIDTH;
-  return { x: 40, y: (BOARD_HEIGHT - height) / 2, width: 1220, height };
-}
+export { boardArea } from "../export/geometry";
 
 /** Pointer events are logged at most about 30 times a second. */
 export const POINTER_INTERVAL_MS = 1000 / 30;

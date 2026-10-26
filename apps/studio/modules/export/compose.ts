@@ -30,6 +30,7 @@ import {
 import { cueAt, cuesFor, drawCaption, type Transcript } from "../captions/captions";
 import { fadeAt, layoutAt, outputDuration, pieces, toSource, type Background, type Edits } from "../editing/edits";
 import { buildProgram, enhance, type ClipAudio } from "./audio";
+import { boardArea } from "./geometry";
 
 export const FPS = 30;
 
@@ -142,11 +143,9 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   } else if (layout === "side-by-side") {
     ctx.fillStyle = "#16181b";
     ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
-    const bw = 1220;
-    const bh = (bw * BOARD_HEIGHT) / BOARD_WIDTH;
-    const by = (BOARD_HEIGHT - bh) / 2;
+    const { x: bx, y: by, width: bw, height: bh } = boardArea("side-by-side");
     ctx.save();
-    ctx.translate(40, by);
+    ctx.translate(bx, by);
     ctx.scale(bw / BOARD_WIDTH, bh / BOARD_HEIGHT);
     f.renderer.render(ctx, board, pv.view, f.tMs, env);
     ctx.restore();
