@@ -118,7 +118,7 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   const fh = (fw * BOARD_HEIGHT) / BOARD_WIDTH;
   const fx = pad;
   const fy = (BOARD_HEIGHT - fh) / 2;
-  const radius = pad > 0 ? 20 : 0;
+  const radius = pad > 0 ? (f.frame.corners ?? 20) : 0;
   if (pad > 0 && f.frame.shadow > 0) {
     ctx.save();
     ctx.shadowColor = `rgba(0, 0, 0, ${(f.frame.shadow / 100) * 0.7})`;

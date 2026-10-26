@@ -29,6 +29,7 @@ import {
   fadeAt,
   layoutAt,
   MAX_PADDING,
+  MAX_CORNERS,
   MAX_SHADOW,
   outputDuration,
   pieces,
@@ -453,7 +454,9 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
                 <Section title="Shadow">
                   <RangeInput aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } })} />
                 </Section>
-                {/* Corner radius is not an edit yet: the frame's corners are fixed at export (compose.ts). */}
+                <Section title="Corners">
+                  <RangeInput aria-label="Corners" min={0} max={MAX_CORNERS} value={edits.frame.corners ?? 20} onChange={(e) => set({ frame: { ...edits.frame, corners: Number(e.target.value) } })} />
+                </Section>
               </TabsContent>
 
               <TabsContent value="camera" className="grid gap-4 pt-2">
