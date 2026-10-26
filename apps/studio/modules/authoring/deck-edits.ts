@@ -26,6 +26,15 @@ export function moveBoard(p: Presentation, from: number, to: number): Presentati
   return { ...p, boards };
 }
 
+/** Where the selected Board ends up after `moveBoard(p, from, to)`. */
+export function selectionAfterMove(selected: number, from: number, to: number, length: number): number {
+  if (to < 0 || to >= length || from === to) return selected;
+  if (selected === from) return to;
+  if (from < selected && to >= selected) return selected - 1;
+  if (from > selected && to <= selected) return selected + 1;
+  return selected;
+}
+
 export function setTransition(p: Presentation, index: number, transition: Transition): Presentation {
   return { ...p, boards: p.boards.map((b, i) => (i === index ? { ...b, transition } : b)) };
 }

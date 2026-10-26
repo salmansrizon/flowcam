@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { boundsOf, parsePresentation, type Board, type Presentation } from "@flowcam/domain";
 import { addElement, createElement } from "./board-edits";
-import { addBoard, deleteBoard, emptyBoard, insertBoard, moveBoard, setTransition } from "./deck-edits";
+import { addBoard, deleteBoard, emptyBoard, insertBoard, moveBoard, selectionAfterMove, setTransition } from "./deck-edits";
 import { addFocusStep, addHighlightStep, addMorphStep, duplicateElements, mergeReveals, setElementText, updateStep } from "./step-edits";
 import { fromExcalidraw } from "./excalidraw";
 import { TEMPLATES, templateBoard } from "./templates";
@@ -12,6 +12,17 @@ const b = createElement("ellipse", { id: "b", x: 300, y: 10 });
 const two = addElement(addElement(emptyBoard(), a), b);
 
 describe("Boards", () => {
+  test("the selected Board stays selected when another Board moves past it", () => {
+    const ids = ["a", "b", "c", "d"];
+    for (let sel = 0; sel < 4; sel++)
+      for (let from = 0; from < 4; from++)
+        for (const to of [from - 1, from + 1, 0, 3]) {
+          const moved = [...ids];
+          if (to >= 0 && to < 4 && from !== to) moved.splice(to, 0, moved.splice(from, 1)[0]);
+          expect(moved[selectionAfterMove(sel, from, to, 4)]).toBe(ids[sel]);
+        }
+  });
+
   const [b1, b2, b3] = [{ ...emptyBoard(), id: "1" }, { ...emptyBoard(), id: "2" }, { ...emptyBoard(), id: "3" }];
   test("add, reorder, transition, delete", () => {
     let p = addBoard(addBoard(deck(b1), 0, b2), 1, b3);

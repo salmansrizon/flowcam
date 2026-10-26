@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BOARD_HEIGHT, BOARD_WIDTH, LAYOUTS, THEMES, TRANSITIONS, boardView, boundsOf, themeById, type Board, type Element, type ElementType, type Layout, type Presentation, type Rect, type Transition } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 import { addElement, addFlowStep, createElement, deleteElement, deleteStep, hitTest, moveElement, moveStep } from "./board-edits";
-import { addBoard, deleteBoard, insertBoard, isEmptyBoard, moveBoard, setTransition, updateBoard } from "./deck-edits";
+import { addBoard, deleteBoard, insertBoard, isEmptyBoard, moveBoard, selectionAfterMove, setTransition, updateBoard } from "./deck-edits";
 import { addFocusStep, addHighlightStep, addMorphStep, duplicateElements, mergeReveals, setElementText, updateStep } from "./step-edits";
 import { fromExcalidraw, excalidrawFiles } from "./excalidraw";
 import { TEMPLATES, templateBoard } from "./templates";
@@ -107,6 +107,11 @@ export default function Editor() {
   }
   function updateDeck(edit: (p: Presentation) => Presentation) {
     setPresentation((p) => (p ? edit(p) : p));
+  }
+  function reorderBoard(from: number, to: number) {
+    const length = presentation?.boards.length ?? 0;
+    updateDeck((p) => moveBoard(p, from, to));
+    setBoardIndex((sel) => selectionAfterMove(sel, from, to, length));
   }
   function goto(i: number) {
     setBoardIndex(i);
@@ -426,16 +431,15 @@ export default function Editor() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                if (dragFrom.current !== null) updateDeck((p) => moveBoard(p, dragFrom.current!, i));
-                if (dragFrom.current === boardIndex) setBoardIndex(i);
+                if (dragFrom.current !== null) reorderBoard(dragFrom.current, i);
                 dragFrom.current = null;
               }}
             >
               <button aria-current={i === boardIndex} className={styles.boardBtn} onClick={() => goto(i)}>
                 Board {i + 1} ({b.elements.length})
               </button>
-              <button aria-label={`Move Board ${i + 1} up`} onClick={() => { updateDeck((p) => moveBoard(p, i, i - 1)); if (i === boardIndex && i > 0) setBoardIndex(i - 1); }}>↑</button>
-              <button aria-label={`Move Board ${i + 1} down`} onClick={() => { updateDeck((p) => moveBoard(p, i, i + 1)); if (i === boardIndex && i < presentation.boards.length - 1) setBoardIndex(i + 1); }}>↓</button>
+              <button aria-label={`Move Board ${i + 1} up`} onClick={() => reorderBoard(i, i - 1)}>↑</button>
+              <button aria-label={`Move Board ${i + 1} down`} onClick={() => reorderBoard(i, i + 1)}>↓</button>
             </li>
           ))}
         </ol>
