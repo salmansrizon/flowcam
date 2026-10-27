@@ -401,7 +401,7 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
                     <Input type="number" aria-label="Range end" step={0.1} min={0} value={secs(range[1])} onChange={(e) => setRange([range[0], Number(e.target.value) * 1000])} className="h-8 w-20" />
                   </div>
                 </div>
-                <Timeline data={data} edits={edits} total={total} playhead={shownTime} selected={selected} onSeek={seek} onSelect={setSelected} />
+                <Timeline data={data} edits={edits} total={total} playhead={shownTime} selected={selected} onSeek={seek} onSelect={setSelected} apply={apply} />
                 {seg && (
                   <div role="group" aria-label="Selected part" className="flex flex-wrap items-center gap-3 text-sm">
                     <span className="font-medium">
