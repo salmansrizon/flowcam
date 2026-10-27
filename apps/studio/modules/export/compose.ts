@@ -16,6 +16,7 @@ import {
   type WrappedCanvas,
 } from "mediabunny";
 import {
+  FONT_STACKS,
   autoPlaceBubble,
   BOARD_HEIGHT,
   BOARD_WIDTH,
@@ -28,9 +29,21 @@ import {
   type Presentation,
 } from "@flowcam/domain";
 import { cueAt, cuesFor, drawCaption, type Transcript } from "../captions/captions";
-import { fadeAt, layoutAt, outputDuration, pieces, toSource, type Background, type Edits } from "../editing/edits";
+import {
+  fadeAt,
+  layoutAt,
+  outputDuration,
+  pieces,
+  toSource,
+  type Aspect,
+  type Background,
+  type ColorCorrection,
+  type Edits,
+  type TextOverlay,
+} from "../editing/edits";
 import { buildProgram, enhance, type ClipAudio } from "./audio";
 import { boardArea } from "./geometry";
+import { aspectSize, colorFilter, gradientEndpoints, temperatureTint, wrapText } from "./look";
 import { decodeImages, imageIdsOf } from "../presentation/assets";
 
 export const FPS = 30;
@@ -66,11 +79,46 @@ export const BACKGROUND_FILLS: Record<Background, string | [string, string]> = {
 };
 
 /** Draws `cam` to fill the box, cropping the overflow from the centre. */
-function drawCover(ctx: Canvas2D, cam: Camera, x: number, y: number, w: number, h: number) {
+function drawCover(ctx: Canvas2D, cam: Camera, x: number, y: number, w: number, h: number, color?: ColorCorrection) {
   const scale = Math.max(w / cam.width, h / cam.height);
   const sw = w / scale;
   const sh = h / scale;
+  const filter = color && colorFilter(color);
+  if (filter) ctx.filter = filter;
   ctx.drawImage(cam.image, (cam.width - sw) / 2, (cam.height - sh) / 2, sw, sh, x, y, w, h);
+  if (filter) ctx.filter = "none";
+  const tint = color && temperatureTint(color.temperature);
+  if (tint) {
+    ctx.fillStyle = tint;
+    ctx.fillRect(x, y, w, h);
+  }
+}
+
+/** Draws the text overlays active at `tMs` of the Clip, centred at their (x, y) of the output frame, over everything else. */
+function drawTexts(ctx: Canvas2D, width: number, height: number, texts: readonly TextOverlay[], clipId: string, tMs: number) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const t of texts) {
+    if (t.clipId !== clipId || tMs < t.start || tMs >= t.end || !t.text.trim()) continue;
+    const size = (t.size * height) / 1080;
+    ctx.font = `${size}px ${FONT_STACKS[t.font]}`;
+    const lines = wrapText(t.text, width * 0.8, (s) => ctx.measureText(s).width);
+    const lineH = size * 1.25;
+    const cx = t.x * width;
+    const top = t.y * height - (lines.length * lineH) / 2;
+    if (t.box) {
+      const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + size * 0.8;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.beginPath();
+      ctx.roundRect(cx - bw / 2, top - size * 0.3, bw, lines.length * lineH + size * 0.6, size * 0.3);
+      ctx.fill();
+    }
+    ctx.fillStyle = t.color;
+    lines.forEach((l, i) => ctx.fillText(l, cx, top + (i + 0.5) * lineH));
+  }
+  ctx.restore();
 }
 
 export interface FrameInput {
@@ -89,6 +137,12 @@ export interface FrameInput {
   /** 0 = normal, 1 = black (a fade Transition). */
   fade: number;
   watermark: boolean;
+  /** Output shape; defaults to 16:9. Presenter View passes nothing. */
+  aspect?: Aspect;
+  /** Camera colour correction. */
+  color?: ColorCorrection;
+  /** Text overlays; the ones active at `tMs` of this Clip are drawn on top. */
+  texts?: readonly TextOverlay[];
 }
 
 /**
@@ -103,21 +157,35 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   const layout = f.layout === "auto" ? pv.view.layout : f.layout;
   const env = { theme: themeById(f.presentation.themeId), images: f.images ?? new Map() };
 
+  // Board units run BOARD_WIDTH across the output; a taller frame is just more units below.
+  const aspect = f.aspect ?? "16:9";
+  const unitsH = height / k;
+  const stacked = aspect === "9:16" && layout !== "board-only" && layout !== "camera-only";
+  // The 16:9 stage the padded frame sits in: the top of a 9:16 stack, else centred.
+  const stageY = stacked ? 0 : (unitsH - BOARD_HEIGHT) / 2;
+
   // Background and the framed picture's place in it, keeping 16:9.
   const fill = BACKGROUND_FILLS[f.frame.background];
-  if (typeof fill === "string") ctx.fillStyle = fill;
+  const custom = f.frame.gradient;
+  if (custom) {
+    const e = gradientEndpoints(custom.angle, BOARD_WIDTH, unitsH);
+    const g = ctx.createLinearGradient(e.x0, e.y0, e.x1, e.y1);
+    g.addColorStop(0, custom.from);
+    g.addColorStop(1, custom.to);
+    ctx.fillStyle = g;
+  } else if (typeof fill === "string") ctx.fillStyle = fill;
   else {
-    const g = ctx.createLinearGradient(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+    const g = ctx.createLinearGradient(0, 0, BOARD_WIDTH, unitsH);
     g.addColorStop(0, fill[0]);
     g.addColorStop(1, fill[1]);
     ctx.fillStyle = g;
   }
-  ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+  ctx.fillRect(0, 0, BOARD_WIDTH, unitsH);
   const pad = (f.frame.padding / 100) * BOARD_WIDTH;
   const fw = BOARD_WIDTH - 2 * pad;
   const fh = (fw * BOARD_HEIGHT) / BOARD_WIDTH;
   const fx = pad;
-  const fy = (BOARD_HEIGHT - fh) / 2;
+  const fy = stageY + (BOARD_HEIGHT - fh) / 2;
   const radius = pad > 0 ? (f.frame.corners ?? 20) : 0;
   if (pad > 0 && f.frame.shadow > 0) {
     ctx.save();
@@ -139,10 +207,17 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   ctx.translate(fx, fy);
   ctx.scale(fw / BOARD_WIDTH, fh / BOARD_HEIGHT);
   const cam = f.camera;
-  if (layout === "camera-only") {
+  if (aspect !== "16:9" && layout === "camera-only") {
+    // Camera only fills the whole frame, whatever its shape.
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, BOARD_WIDTH, unitsH);
+    if (cam) drawCover(ctx, cam, 0, 0, BOARD_WIDTH, unitsH, f.color);
+  } else if (layout === "camera-only") {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
-    if (cam) drawCover(ctx, cam, 0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+    if (cam) drawCover(ctx, cam, 0, 0, BOARD_WIDTH, BOARD_HEIGHT, f.color);
   } else if (layout === "side-by-side") {
     ctx.fillStyle = "#16181b";
     ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
@@ -157,19 +232,19 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
       ctx.beginPath();
       ctx.roundRect(1300, by, 580, bh, 16);
       ctx.clip();
-      drawCover(ctx, cam, 1300, by, 580, bh);
+      drawCover(ctx, cam, 1300, by, 580, bh, f.color);
       ctx.restore();
     }
   } else {
     f.renderer.render(ctx, board, pv.view, f.tMs, env);
-    if (layout === "bubble" && cam) {
+    if (layout === "bubble" && cam && !stacked) {
       const { x, y } = autoPlaceBubble(board, pv.view, BUBBLE_SIZE);
       const r = BUBBLE_SIZE / 2;
       ctx.save();
       ctx.beginPath();
       ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
       ctx.clip();
-      drawCover(ctx, cam, x, y, BUBBLE_SIZE, BUBBLE_SIZE);
+      drawCover(ctx, cam, x, y, BUBBLE_SIZE, BUBBLE_SIZE, f.color);
       ctx.restore();
       ctx.lineWidth = 6;
       ctx.strokeStyle = "#ffffff";
@@ -180,11 +255,30 @@ export function composeFrame(ctx: Canvas2D, width: number, height: number, f: Fr
   }
   if (f.fade > 0) {
     ctx.fillStyle = `rgba(0, 0, 0, ${f.fade})`;
-    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+    ctx.fillRect(0, 0, BOARD_WIDTH, aspect !== "16:9" && layout === "camera-only" ? unitsH : BOARD_HEIGHT);
   }
   ctx.restore();
+  if (stacked) {
+    // The Camera fills the rest of the 9:16 frame.
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, BOARD_HEIGHT, BOARD_WIDTH, unitsH - BOARD_HEIGHT);
+    if (cam) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, BOARD_HEIGHT, BOARD_WIDTH, unitsH - BOARD_HEIGHT);
+      ctx.clip();
+      drawCover(ctx, cam, 0, BOARD_HEIGHT, BOARD_WIDTH, unitsH - BOARD_HEIGHT, f.color);
+      ctx.restore();
+    }
+    if (f.fade > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${f.fade})`;
+      ctx.fillRect(0, BOARD_HEIGHT, BOARD_WIDTH, unitsH - BOARD_HEIGHT);
+    }
+  }
 
   if (f.caption) drawCaption(ctx, f.caption.text, f.caption.style, f.caption.position, width, height);
+  if (f.texts?.length) drawTexts(ctx, width, height, f.texts, f.log.clipId, f.tMs);
   if (f.watermark) {
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.font = "600 30px system-ui, sans-serif";
@@ -249,7 +343,7 @@ export async function exportRecording(
   transcript: Transcript | null,
   opts: ExportOptions,
 ): Promise<Blob> {
-  const [width, height] = RESOLUTIONS[opts.resolution ?? "1080p"];
+  const [width, height] = aspectSize(edits.aspect ?? "16:9", RESOLUTIONS[opts.resolution ?? "1080p"][0]);
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;
   const byId = new Map(clips.map((c) => [c.log.clipId, c]));
@@ -303,6 +397,9 @@ export async function exportRecording(
         camera: wrapped ? { image: wrapped.canvas, width: wrapped.canvas.width, height: wrapped.canvas.height } : null,
         layout: layoutAt(edits, order, src.clipId, src.t),
         frame: edits.frame,
+        aspect: edits.aspect,
+        color: edits.color,
+        texts: edits.texts,
         caption: cue && { text: cue.text, style: edits.captions.style, position: edits.captions.position },
         fade: fadeAt(ps, outT),
         watermark: opts.watermark,

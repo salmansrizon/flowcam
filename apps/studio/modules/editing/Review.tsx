@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cueAt, cuesFor, toSrt, toVtt } from "../captions/captions";
 import { transcribe } from "../captions/transcribe";
 import { composeFrame, decodeMicrophone } from "../export/compose";
+import { aspectSize } from "../export/look";
 import Exporter from "../export/Exporter";
 import { decodeImages, imageIdsOf } from "../presentation/assets";
 import { detectDeadAir } from "./dead-air";
@@ -40,8 +41,6 @@ import { Timeline } from "./Timeline";
 import { loadEditable, writeEdits, writeTranscript, type EditableRecording } from "./store";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const PREVIEW_W = 1280;
-const PREVIEW_H = 720;
 const secs = (ms: number) => (ms / 1000).toFixed(2);
 
 export default function Review({ recordingId, edit }: { recordingId: string; edit: boolean }) {
@@ -63,6 +62,7 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
   const [tab, setTab] = useState("background");
   const [layoutChoice, setLayoutChoice] = useState<Layout | "auto">("auto");
 
+  const [PREVIEW_W, PREVIEW_H] = aspectSize(edits?.aspect ?? "16:9", 1280);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videosRef = useRef(new Map<string, HTMLVideoElement>());
   const [captionStatus, setCaptionStatus] = useState("");
@@ -225,6 +225,9 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
           camera: v && v.videoWidth ? { image: v, width: v.videoWidth, height: v.videoHeight } : null,
           layout: layoutAt(edits, order, src.clipId, src.t),
           frame: edits.frame,
+          aspect: edits.aspect,
+          color: edits.color,
+          texts: edits.texts,
           caption: cue && { text: cue.text, style: edits.captions.style, position: edits.captions.position },
           fade: fadeAt(ps, outT),
           watermark: true,

@@ -1,14 +1,17 @@
 "use client";
 
 import { LAYOUTS, type Layout } from "@flowcam/domain";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CAPTION_LOOKS } from "../captions/captions";
 import { BACKGROUND_FILLS } from "../export/compose";
-import { BACKGROUNDS, CAPTION_POSITIONS, CAPTION_STYLES, MAX_CORNERS, MAX_PADDING, MAX_SHADOW, setLayout, type Edits } from "./edits";
+import { ASPECTS, BACKGROUNDS, CAPTION_POSITIONS, CAPTION_STYLES, MAX_CORNERS, MAX_PADDING, MAX_SHADOW, NO_COLOR_CORRECTION, setLayout, type Background, type Edits } from "./edits";
+import { applyPreset, loadPresets, presetOf, storePresets } from "./presets";
 import { NativeSelect, RangeInput, SegmentedRow, Section, SwatchRow } from "./ui";
 
 /** The Review screen's settings sidebar (Cap-style tabs): Background, Camera, Audio, Captions and Layout. */
@@ -36,8 +39,78 @@ export function Sidebar({
   layoutChoice: Layout | "auto";
   setLayoutChoice: (l: Layout | "auto") => void;
 }) {
+  const [presets, setPresets] = useState(loadPresets);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [picked, setPicked] = useState("");
+  const savePresets = (next: typeof presets) => {
+    setPresets(next);
+    storePresets(next);
+  };
+  const gradient = edits.frame.gradient;
+  const color = edits.color ?? NO_COLOR_CORRECTION;
+  const setColor = (patch: Partial<typeof color>) => set({ color: { ...color, ...patch } });
   return (
   <aside className="w-80 shrink-0 overflow-y-auto border-l bg-sidebar p-4 text-sidebar-foreground">
+    <div className="mb-3 grid gap-1.5">
+      <h3 className="text-xs font-medium text-muted-foreground">Style presets</h3>
+      <div className="flex items-center gap-1.5">
+        <NativeSelect
+          aria-label="Presets"
+          value={picked}
+          className="min-w-0 flex-1"
+          onChange={(e) => {
+            const p = presets.find((x) => x.name === e.target.value);
+            setPicked(e.target.value);
+            if (p) apply(applyPreset(edits, p));
+          }}
+        >
+          <option value="">{presets.length ? "Apply a preset…" : "No presets yet"}</option>
+          {presets.map((p) => (
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </NativeSelect>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="Delete preset"
+          disabled={!picked}
+          onClick={() => {
+            savePresets(presets.filter((p) => p.name !== picked));
+            setPicked("");
+          }}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+      {naming === null ? (
+        <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setNaming("")}>
+          Save current look…
+        </Button>
+      ) : (
+        <form
+          className="flex gap-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = naming.trim();
+            if (!name) return;
+            savePresets([...presets.filter((p) => p.name !== name), presetOf(name, edits)]);
+            setPicked(name);
+            setNaming(null);
+          }}
+        >
+          <Input autoFocus aria-label="Preset name" placeholder="Preset name" value={naming} onChange={(e) => setNaming(e.target.value)} className="h-8" />
+          <Button type="submit" size="sm" disabled={!naming.trim()}>
+            Save
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setNaming(null)}>
+            Cancel
+          </Button>
+        </form>
+      )}
+    </div>
     <Tabs value={tab} onValueChange={setTab}>
       <TabsList className="grid h-8 w-full grid-cols-5">
         {["background", "camera", "audio", "captions", "layout"].map((t) => (
@@ -48,13 +121,33 @@ export function Sidebar({
       </TabsList>
 
       <TabsContent value="background" className="grid gap-4 pt-2">
+        <Section title="Aspect ratio">
+          <SegmentedRow label="Aspect ratio" value={edits.aspect ?? "16:9"} options={ASPECTS.map((a) => ({ value: a, label: a }))} onChange={(aspect) => set({ aspect })} />
+        </Section>
         <Section title="Background">
           <SwatchRow
             label="Background"
-            value={edits.frame.background}
-            options={BACKGROUNDS.map((b) => ({ value: b, fill: swatchFill(b) }))}
-            onChange={(b) => set({ frame: { ...edits.frame, background: b } })}
+            value={gradient ? "custom" : edits.frame.background}
+            options={[
+              ...BACKGROUNDS.map((b) => ({ value: b as Background | "custom", fill: swatchFill(b) })),
+              { value: "custom" as const, fill: gradient ? css(gradient) : "conic-gradient(#ff8a65, #a259ff, #22b8cf, #ff8a65)" },
+            ]}
+            onChange={(b) => {
+              const rest = { ...edits.frame, gradient: undefined };
+              set({ frame: b === "custom" ? { ...rest, gradient: { from: "#ff8a65", to: "#a259ff", angle: 135 } } : { ...rest, background: b } });
+            }}
           />
+          {gradient && (
+            <div className="grid gap-2 rounded-lg border p-2">
+              <div aria-label="Gradient preview" className="h-8 rounded-md border" style={{ background: css(gradient) }} />
+              <div className="flex items-center gap-2 text-xs">
+                <input type="color" aria-label="Gradient from" value={gradient.from} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, from: e.target.value } } })} className="h-7 w-10 cursor-pointer" />
+                <input type="color" aria-label="Gradient to" value={gradient.to} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, to: e.target.value } } })} className="h-7 w-10 cursor-pointer" />
+                <span className="ml-auto tabular-nums text-muted-foreground">{gradient.angle}°</span>
+              </div>
+              <RangeInput aria-label="Gradient angle" min={0} max={360} value={gradient.angle} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, angle: Number(e.target.value) } } })} />
+            </div>
+          )}
         </Section>
         <Section title="Padding">
           <RangeInput aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } })} />
@@ -68,6 +161,22 @@ export function Sidebar({
       </TabsContent>
 
       <TabsContent value="camera" className="grid gap-4 pt-2">
+        <Section
+          title="Colour correction"
+          aside={
+            <Button type="button" variant="ghost" size="xs" onClick={() => set({ color: NO_COLOR_CORRECTION })} disabled={!Object.values(color).some(Boolean)}>
+              Reset
+            </Button>
+          }
+        >
+          {(["brightness", "contrast", "saturation", "temperature"] as const).map((k) => (
+            <label key={k} className="grid grid-cols-[5.5rem_1fr_2rem] items-center gap-2 text-xs capitalize">
+              {k}
+              <RangeInput aria-label={k} min={-100} max={100} value={color[k]} onChange={(e) => setColor({ [k]: Number(e.target.value) })} />
+              <span className="text-right tabular-nums text-muted-foreground">{color[k]}</span>
+            </label>
+          ))}
+        </Section>
         <Section title="Layout">
           <p className="text-sm">
             At the playhead: <strong>{here}</strong>
@@ -149,6 +258,8 @@ export function Sidebar({
   </aside>
   );
 }
+
+const css = (g: { from: string; to: string; angle: number }) => `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})`;
 
 /** A background's swatch colour: a plain colour or the gradient it is drawn with. */
 function swatchFill(b: Edits["frame"]["background"]) {
