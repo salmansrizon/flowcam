@@ -7,3 +7,8 @@ The Board renderer stays plain TypeScript drawing on a canvas, with no React ins
 - Rendering Boards with React or SVG: simpler to start, too slow for Flows and 4K export.
 - Mantine or Chakra UI: more ready-made, but a stronger default look that fights the calm studio direction.
 - SolidJS, as in Cap's desktop app: does not fit the shared React codebase across web and Electron.
+
+## Consequences
+
+- The renderer package must not depend on React or read the wall clock; unit tests fail if it does.
+- The interface uses Tailwind CSS v4 and shadcn/ui on Radix, with Excaliflow's accent colour, panel style and tool dock; light and dark follow the system setting.
