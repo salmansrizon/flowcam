@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AccountMenu } from "@/modules/account/AccountMenu";
 
 /**
  * The bar across the top of every screen: brand on the left, the screen's own controls in the middle and actions
@@ -13,7 +14,7 @@ export function TopBar({ children, actions, className }: { children?: React.Reac
         Flowcam
       </Link>
       <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
-      <div className="flex items-center gap-2">{actions}</div>
+      <div className="flex items-center gap-2">{actions}<AccountMenu /></div>
     </header>
   );
 }
