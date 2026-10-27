@@ -1,6 +1,6 @@
 import type { Presentation } from "@flowcam/domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { supabaseBrowser } from "../../lib/supabase/client";
 import { imageIdsOf, readAsset, sha256Hex, writeAsset } from "../presentation/assets";
 import { clearMeta, readLocal, readMeta, writeLocal, writeMeta } from "../presentation/local";
 
