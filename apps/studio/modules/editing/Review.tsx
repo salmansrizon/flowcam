@@ -1,8 +1,8 @@
 "use client";
 
-import { LAYOUTS, type Layout } from "@flowcam/domain";
+import { type Layout } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
-import { Blend, Diamond, Download, Eraser, Flag, Gauge, LayoutTemplate, Pause, Pencil, Play, Scissors, Undo2 } from "lucide-react";
+import { Blend, Eraser, Gauge, LayoutTemplate, Pause, Pencil, Play, Scissors, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel } from "@/components/studio/Panel";
@@ -11,40 +11,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { CAPTION_LOOKS, cueAt, cuesFor, toSrt, toVtt } from "../captions/captions";
+import { cueAt, cuesFor, toSrt, toVtt } from "../captions/captions";
 import { transcribe } from "../captions/transcribe";
-import { BACKGROUND_FILLS, composeFrame, decodeMicrophone } from "../export/compose";
+import { composeFrame, decodeMicrophone } from "../export/compose";
 import Exporter from "../export/Exporter";
 import { decodeImages, imageIdsOf } from "../presentation/assets";
 import { detectDeadAir } from "./dead-air";
 import {
-  BACKGROUNDS,
-  CAPTION_POSITIONS,
-  CAPTION_STYLES,
   CLIP_TRANSITIONS,
   deleteRange,
   fadeAt,
   layoutAt,
-  MAX_PADDING,
-  MAX_CORNERS,
-  MAX_SHADOW,
   outputDuration,
   pieces,
-  setLayout,
   setSpeed,
   setTransition,
   split,
-  markAt,
   toSource,
   trim,
   type ClipTransition,
   type DeadAir,
-  type Edits,
+  type Edits
 } from "./edits";
-import { NativeSelect, RangeInput, SegmentedRow, Section, SwatchRow } from "./ui";
+import { NativeSelect, RangeInput } from "./ui";
+import { Sidebar } from "./Sidebar";
+import { Timeline } from "./Timeline";
 import { loadEditable, writeEdits, writeTranscript, type EditableRecording } from "./store";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -429,129 +421,13 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
             )}
           </div>
 
-          <aside className="w-80 shrink-0 overflow-y-auto border-l bg-sidebar p-4 text-sidebar-foreground">
-            <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="grid h-8 w-full grid-cols-5">
-                {["background", "camera", "audio", "captions", "layout"].map((t) => (
-                  <TabsTrigger key={t} value={t} className="px-1 text-xs capitalize">
-                    {t}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <TabsContent value="background" className="grid gap-4 pt-2">
-                <Section title="Background">
-                  <SwatchRow
-                    label="Background"
-                    value={edits.frame.background}
-                    options={BACKGROUNDS.map((b) => ({ value: b, fill: swatchFill(b) }))}
-                    onChange={(b) => set({ frame: { ...edits.frame, background: b } })}
-                  />
-                </Section>
-                <Section title="Padding">
-                  <RangeInput aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } })} />
-                </Section>
-                <Section title="Shadow">
-                  <RangeInput aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } })} />
-                </Section>
-                <Section title="Corners">
-                  <RangeInput aria-label="Corners" min={0} max={MAX_CORNERS} value={edits.frame.corners ?? 20} onChange={(e) => set({ frame: { ...edits.frame, corners: Number(e.target.value) } })} />
-                </Section>
-              </TabsContent>
-
-              <TabsContent value="camera" className="grid gap-4 pt-2">
-                <Section title="Layout">
-                  <p className="text-sm">
-                    At the playhead: <strong>{here}</strong>
-                  </p>
-                  <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setTab("layout")}>
-                    Change the Layout
-                  </Button>
-                </Section>
-              </TabsContent>
-
-              <TabsContent value="audio" className="grid gap-4 pt-2">
-                <Section title="Clean up">
-                  <div className="flex items-center gap-2">
-                    <Switch id="enhance-audio" checked={edits.enhanceAudio} onCheckedChange={(v) => set({ enhanceAudio: v })} />
-                    <Label htmlFor="enhance-audio">Noise reduction and levelling</Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{edits.enhanceAudio ? "On: applied when you export." : "Off: the Microphone is exported as recorded."}</p>
-                </Section>
-              </TabsContent>
-
-              <TabsContent value="captions" className="grid gap-4 pt-2">
-                <Section title="Style">
-                  <SegmentedRow
-                    label="Caption style"
-                    value={edits.captions.style}
-                    options={CAPTION_STYLES.map((s) => ({ value: s, label: CAPTION_LOOKS[s].name }))}
-                    onChange={(style) => set({ captions: { ...edits.captions, style } })}
-                  />
-                </Section>
-                <Section title="Position">
-                  <SegmentedRow
-                    label="Caption position"
-                    value={edits.captions.position}
-                    options={CAPTION_POSITIONS.map((p) => ({ value: p, label: p }))}
-                    onChange={(position) => set({ captions: { ...edits.captions, position } })}
-                  />
-                </Section>
-                <Section title="Caption files">
-                  {captionFiles ? (
-                    <div className="flex gap-2">
-                      <Button asChild variant="outline" size="sm">
-                        <a href={captionFiles.srt} download="flowcam.srt">
-                          <Download /> Download SRT
-                        </a>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <a href={captionFiles.vtt} download="flowcam.vtt">
-                          <Download /> Download VTT
-                        </a>
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No Transcript yet.</p>
-                  )}
-                </Section>
-              </TabsContent>
-
-              <TabsContent value="layout" className="grid gap-4 pt-2">
-                <Section title="Layout from the playhead on">
-                  <div className="flex items-center gap-2">
-                    <NativeSelect aria-label="Layout" value={layoutChoice} onChange={(e) => setLayoutChoice(e.target.value as Layout | "auto")} className="flex-1">
-                      <option value="auto">Follow the Steps</option>
-                      {LAYOUTS.map((l) => (
-                        <option key={l} value={l}>
-                          {l}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                    <Button type="button" onClick={() => apply(setLayout(edits, playhead, layoutChoice))}>
-                      Set Layout
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {edits.layouts.length} Layout {edits.layouts.length === 1 ? "change" : "changes"} on the Timeline.
-                  </p>
-                </Section>
-              </TabsContent>
-            </Tabs>
-          </aside>
+          <Sidebar edits={edits} set={set} apply={apply} tab={tab} setTab={setTab} here={here} captionFiles={captionFiles} playhead={playhead} layoutChoice={layoutChoice} setLayoutChoice={setLayoutChoice} />
         </div>
       </main>
     </TooltipProvider>
   );
 }
 
-/** A background's swatch colour: a plain colour or the gradient it is drawn with. */
-function swatchFill(b: Edits["frame"]["background"]) {
-  const f = BACKGROUND_FILLS[b];
-  return typeof f === "string" ? f : `linear-gradient(135deg, ${f[0]}, ${f[1]})`;
-}
-
-/** An icon button with a tooltip; its aria-label is the tooltip's text. */
 function Tool({ label, icon, ...props }: { label: string; icon: React.ReactNode } & Omit<React.ComponentProps<typeof Button>, "children">) {
   return (
     <Tooltip>
@@ -562,101 +438,5 @@ function Tool({ label, icon, ...props }: { label: string; icon: React.ReactNode 
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
-  );
-}
-
-/** Clips in order as rounded blocks, each Step pinned where it was advanced, with a draggable playhead. */
-function Timeline(props: {
-  data: EditableRecording;
-  edits: Edits;
-  total: number;
-  playhead: number;
-  selected: number;
-  onSeek: (t: number) => void;
-  onSelect: (segment: number) => void;
-}) {
-  const { data, edits, total, playhead, selected } = props;
-  const ps = pieces(edits);
-  const dragging = useRef(false);
-  const pct = (t: number) => `${(t / Math.max(total, 1)) * 100}%`;
-  const steps = data.clips.flatMap((c) =>
-    c.log.events.flatMap((ev) => {
-      if (ev.type !== "step") return [];
-      const at = markAt(ps, c.log.clipId, ev.t);
-      return at === null ? [] : [{ at, index: ev.index }];
-    }),
-  );
-  const layouts = edits.layouts.flatMap((l) => {
-    const at = markAt(ps, l.clipId, l.t);
-    return at === null ? [] : [{ at, layout: l.layout }];
-  });
-  const seekTo = (e: React.PointerEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    props.onSeek(((e.clientX - r.left) / r.width) * total);
-  };
-  return (
-    <div
-      aria-label="Timeline"
-      role="group"
-      className="relative h-28 cursor-pointer touch-none rounded-lg bg-muted/60 select-none"
-      onPointerDown={(e) => {
-        dragging.current = true;
-        e.currentTarget.setPointerCapture(e.pointerId);
-        const part = (e.target as HTMLElement).closest<HTMLElement>("[data-segment]");
-        if (part) props.onSelect(Number(part.dataset.segment));
-        seekTo(e);
-      }}
-      onPointerMove={(e) => dragging.current && seekTo(e)}
-      onPointerUp={() => void (dragging.current = false)}
-      onPointerCancel={() => void (dragging.current = false)}
-    >
-      {ps.map((p, i) => (
-        <button
-          key={i}
-          type="button"
-          data-testid="timeline-part"
-          data-segment={p.segment}
-          aria-pressed={p.segment === selected}
-          title={`Clip ${data.recording.clips.indexOf(p.clipId) + 1}, ${p.speed}x`}
-          // Pointer clicks are handled by the track (it must own the drag); this is for Enter and Space.
-          onClick={(e) => e.detail === 0 && props.onSelect(p.segment)}
-          style={{ left: pct(p.at), width: pct(p.length) }}
-          className={cn(
-            "absolute top-2 flex h-12 items-center gap-1 overflow-hidden rounded-lg border px-2 text-left text-xs font-medium whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-            data.recording.clips.indexOf(p.clipId) % 2 ? "bg-secondary text-secondary-foreground" : "bg-accent text-accent-foreground",
-            p.segment === selected ? "border-2 border-primary" : "border-border",
-            p.transition === "fade" && "border-l-8 border-l-foreground",
-          )}
-        >
-          Clip {data.recording.clips.indexOf(p.clipId) + 1}
-          {p.speed !== 1 && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-background/70 px-1.5 py-0.5">
-              <Gauge className="size-3" aria-hidden />
-              {p.speed}x
-            </span>
-          )}
-        </button>
-      ))}
-      {steps.map((s, i) => (
-        <span
-          key={i}
-          data-testid="timeline-step"
-          title={`Step ${s.index}`}
-          style={{ left: pct(s.at) }}
-          className="pointer-events-none absolute top-16 inline-flex items-center gap-1 rounded-md bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground"
-        >
-          <Flag className="size-3" aria-hidden />
-          Step {s.index}
-        </span>
-      ))}
-      {layouts.map((l, i) => (
-        <span key={i} title={`Layout: ${l.layout}`} style={{ left: pct(l.at) }} className="pointer-events-none absolute top-[88px] inline-flex items-center gap-1 text-[11px] font-medium text-accent-foreground">
-          <Diamond className="size-3" aria-hidden /> {l.layout}
-        </span>
-      ))}
-      <div style={{ left: pct(Math.min(playhead, total)) }} className="pointer-events-none absolute inset-y-0 w-0.5 bg-destructive">
-        <span className="absolute -top-1 left-1/2 size-3 -translate-x-1/2 rounded-full bg-destructive" />
-      </div>
-    </div>
   );
 }
