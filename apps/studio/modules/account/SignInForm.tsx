@@ -9,7 +9,10 @@ import { safeNext } from "./next";
 
 const COOLDOWN_SECONDS = 60;
 
-/** Email one-time-code sign-in: ask for an email, then for the 6-digit code that was sent to it. */
+/**
+ * Email one-time-code sign-in: ask for an email, then for the code sent to it. The code length is a Supabase Auth
+ * setting (6 to 8 digits), so accept any of them.
+ */
 export function SignInForm({ next }: { next?: string }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -62,9 +65,9 @@ export function SignInForm({ next }: { next?: string }) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="code">6-digit code</Label>
+          <Label htmlFor="code">One-time code</Label>
           <p className="text-sm text-muted-foreground">We sent a code to {email}.</p>
-          <Input id="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus maxLength={6} pattern="[0-9]{6}" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" className="tracking-[0.4em]" />
+          <Input id="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus maxLength={8} pattern="[0-9]{6,8}" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" className="tracking-[0.4em]" />
         </div>
       )}
       {error && (
@@ -72,7 +75,7 @@ export function SignInForm({ next }: { next?: string }) {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy || (sent && code.length !== 6)}>
+      <Button type="submit" disabled={busy || (sent && code.length < 6)}>
         {sent ? "Verify code" : "Email me a code"}
       </Button>
       {sent && (

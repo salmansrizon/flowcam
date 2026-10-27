@@ -31,9 +31,9 @@ test("a wrong code shows an error and stays on the page", async ({ page }) => {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(user.email);
   await page.getByRole("button", { name: "Email me a code" }).click();
-  await page.getByLabel("6-digit code").fill("000000");
+  await page.getByLabel("One-time code").fill("000000");
   await page.getByRole("button", { name: "Verify code" }).click();
-  await expect(page.getByRole("alert")).toContainText("wrong or has expired");
+  await expect(page.locator("p[role=alert]")).toContainText("wrong or has expired");
   await expect(page).toHaveURL(/\/sign-in/);
   await expect(page.getByRole("button", { name: /Resend code in \d+s/ })).toBeDisabled();
 });

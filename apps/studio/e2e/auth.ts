@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 
 // The test runner (Node side) needs the secret key; playwright.config.ts also loads this file.
 try {
-  process.loadEnvFile(new URL("../.env.local", import.meta.url));
+  process.loadEnvFile("apps/studio/.env.local"); // Playwright runs from the repo root
 } catch {
   // Env may already be set.
 }
@@ -50,8 +50,8 @@ export async function signInWithCode(page: Page, email: string, next?: string) {
   await page.goto(next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Email me a code" }).click();
-  await expect(page.getByLabel("6-digit code")).toBeVisible();
-  await page.getByLabel("6-digit code").fill(await generateOtp(email));
+  await expect(page.getByLabel("One-time code")).toBeVisible();
+  await page.getByLabel("One-time code").fill(await generateOtp(email));
   await page.getByRole("button", { name: "Verify code" }).click();
 }
 
@@ -66,7 +66,7 @@ export async function signedInPage(page: Page): Promise<{ user: TestUser; cleanu
 /** Runs `npm run dev:grant-plan` for the user, as a developer would. */
 export function grantPlan(email: string, plan: "pro" | "trial", days?: number) {
   execFileSync("npm", ["run", "dev:grant-plan", "--", email, plan, ...(days ? [String(days)] : [])], {
-    cwd: new URL("../../..", import.meta.url),
+    cwd: process.cwd(),
     env: { ...process.env, FLOWCAM_ALLOW_GRANT: "1" },
     stdio: "pipe",
   });
