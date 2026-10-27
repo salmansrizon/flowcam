@@ -1,4 +1,4 @@
-import { InvalidDataError, LAYOUTS, type Layout } from "@flowcam/domain";
+import { FONT_IDS, InvalidDataError, LAYOUTS, type FontId, type Layout } from "@flowcam/domain";
 
 // Edits to a Recording, made on the Review screen and Timeline, stored as recordings/<id>/edits.json.
 // Every time in here is ms. "Source" times are ms from a Clip's start (its log and media timeline);
@@ -51,6 +51,56 @@ export const MAX_PADDING = 20;
 export const MAX_SHADOW = 100;
 export const MAX_CORNERS = 60;
 
+/** Output frame shape. 9:16 stacks the Board above the Camera; true Board re-layout comes later. */
+export const ASPECTS = ["16:9", "9:16", "1:1", "4:3"] as const;
+export type Aspect = (typeof ASPECTS)[number];
+
+/** A custom two-colour background; when set it replaces `frame.background`. `angle` is in degrees. */
+export interface Gradient {
+  from: string;
+  to: string;
+  angle: number;
+}
+
+/**
+ * Text drawn over the video, pinned to a Clip like Layout changes, so trims and speed changes carry it.
+ * `x` and `y` are the text's centre as fractions of the output frame; `size` is px at 1080 lines.
+ */
+export interface TextOverlay {
+  id: string;
+  clipId: string;
+  start: number;
+  end: number;
+  text: string;
+  x: number;
+  y: number;
+  size: number;
+  font: FontId;
+  color: string;
+  /** Draw a translucent box behind the text. */
+  box: boolean;
+}
+export const MIN_TEXT_SIZE = 12;
+export const MAX_TEXT_SIZE = 200;
+
+/** Camera colour correction; each value runs from -100 to 100, 0 is unchanged. */
+export interface ColorCorrection {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  temperature: number;
+}
+export const NO_COLOR_CORRECTION: ColorCorrection = { brightness: 0, contrast: 0, saturation: 0, temperature: 0 };
+
+/** A saved look, applied to any Recording's edits. Stored per browser, not per Recording. */
+export interface StylePreset {
+  name: string;
+  aspect: Aspect;
+  frame: Edits["frame"];
+  captions: Edits["captions"];
+  color: ColorCorrection;
+}
+
 export interface Edits {
   version: typeof EDITS_VERSION;
   /** Kept ranges in play order. */
@@ -61,7 +111,11 @@ export interface Edits {
   deadAir: DeadAir[] | null;
   captions: { enabled: boolean; style: CaptionStyle; position: CaptionPosition };
   /** Picture around the frame. `padding` is % of the width on each side; `shadow` 0–100; `corners` is the radius in px (default 20). */
-  frame: { background: Background; padding: number; shadow: number; corners?: number };
+  frame: { background: Background; padding: number; shadow: number; corners?: number; gradient?: Gradient };
+  /** Optional additions; absent means the default: 16:9, no text overlays, no colour correction. */
+  aspect?: Aspect;
+  texts?: TextOverlay[];
+  color?: ColorCorrection;
   /** Noise reduction and loudness levelling at export. */
   enhanceAudio: boolean;
 }
@@ -96,6 +150,8 @@ const arr = (v: unknown, path: string): unknown[] => (Array.isArray(v) ? v : fai
 const num = (v: unknown, path: string, min = -Infinity, max = Infinity): number =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : fail(path, `a number from ${min} to ${max}`);
 const str = (v: unknown, path: string): string => (typeof v === "string" && v ? v : fail(path, "a non-empty string"));
+const hex = (v: unknown, path: string): string =>
+  typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : fail(path, "a #rrggbb colour");
 const bool = (v: unknown, path: string): boolean => (typeof v === "boolean" ? v : fail(path, "a boolean"));
 const oneOf = <T extends string>(v: unknown, options: readonly T[], path: string): T =>
   options.includes(v as T) ? (v as T) : fail(path, options.join(" | "));
@@ -142,6 +198,35 @@ export function parseEdits(v: unknown, clipIds: readonly string[]): Edits {
   num(frame.padding, "edits.frame.padding", 0, MAX_PADDING);
   num(frame.shadow, "edits.frame.shadow", 0, MAX_SHADOW);
   if (frame.corners !== undefined) num(frame.corners, "edits.frame.corners", 0, MAX_CORNERS);
+  if (frame.gradient !== undefined) {
+    const g = obj(frame.gradient, "edits.frame.gradient");
+    hex(g.from, "edits.frame.gradient.from");
+    hex(g.to, "edits.frame.gradient.to");
+    num(g.angle, "edits.frame.gradient.angle", 0, 360);
+  }
+  if (o.aspect !== undefined) oneOf(o.aspect, ASPECTS, "edits.aspect");
+  if (o.texts !== undefined) {
+    const ids = new Set<string>();
+    arr(o.texts, "edits.texts").forEach((v, i) => {
+      const p = `edits.texts[${i}]`;
+      const t = obj(v, p);
+      if (ids.has(str(t.id, `${p}.id`))) fail(`${p}.id`, "a unique id");
+      ids.add(t.id as string);
+      clip(t.clipId, `${p}.clipId`);
+      range(t, p);
+      str(t.text, `${p}.text`);
+      num(t.x, `${p}.x`, 0, 1);
+      num(t.y, `${p}.y`, 0, 1);
+      num(t.size, `${p}.size`, MIN_TEXT_SIZE, MAX_TEXT_SIZE);
+      oneOf(t.font, FONT_IDS, `${p}.font`);
+      hex(t.color, `${p}.color`);
+      bool(t.box, `${p}.box`);
+    });
+  }
+  if (o.color !== undefined) {
+    const c = obj(o.color, "edits.color");
+    for (const k of ["brightness", "contrast", "saturation", "temperature"]) num(c[k], `edits.color.${k}`, -100, 100);
+  }
   bool(o.enhanceAudio, "edits.enhanceAudio");
   return o as unknown as Edits;
 }
