@@ -7,6 +7,7 @@ import { boardRenderer, renderFrame } from "@flowcam/renderer";
 // Dev harness for the golden-frame tests: draws a fixed Board at `?t=<ms>` into a 1920x1080 canvas.
 // `?scene=effects` (sticky, Image, draw-on, highlight, morph, focus) and `?scene=transition` (two Boards) draw a Presentation through renderFrame;
 // `?theme=<id>` applies a Theme, `?kind=fade|slide|none` sets the transition.
+// `?scene=flow&mode=<comets|pulse|neon|dashed>&speed=<n>&override=1` draws one Flow arrow and a text box; override=1 sets fontOverride and roughnessOverride.
 // Tests can also call `window.renderAt(t)` to redraw the same canvas.
 
 const base = { strokeColor: "#171717", fillStyle: "hachure", strokeWidth: 2.2, strokeStyle: "solid", roughness: 0.85, fontFamily: "hand", fontSize: 24, text: "", curveType: "curved" } as const;
@@ -71,6 +72,19 @@ function transitionPresentation(kind: Board["transition"]): Presentation {
 }
 const transitionLog: ClipLog = { version: 2, clipId: "c", startBoard: 0, startStep: 0, durationMs: 4000, events: [{ t: 1000, type: "board", index: 1 }] };
 
+/** One long arrow with Flow on, plus a rectangle with text, for the Flow mode and style override tests. */
+function flowBoard(mode: string, speed: number, override: boolean): Board {
+  const o = override ? ({ fontOverride: "code", roughnessOverride: 2.5 } as const) : {};
+  return {
+    id: "flow",
+    steps: [],
+    elements: [
+      { ...base, id: "fa", type: "arrow", x: 200, y: 300, width: 1500, height: 0, x2: 1700, y2: 300, seed: 9, curveType: "straight", strokeColor: "#0070f3", flowEnabled: true, flowMode: mode as Element["flowMode"], flowSpeed: speed, ...o },
+      { ...base, id: "fr", type: "rectangle", x: 400, y: 500, width: 700, height: 300, seed: 12, text: "Override", fontSize: 48, ...o },
+    ],
+  };
+}
+
 function makePicture(): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = 160;
@@ -105,11 +119,13 @@ export default function RendererHarness() {
     const scene = q.get("scene");
     const themeId = q.get("theme");
     const env: RenderEnv | undefined = scene || themeId ? { theme: themeById(themeId ?? "paper"), images: new Map([["pic", makePicture()]]) } : undefined;
+    const flow = scene === "flow" ? flowBoard(q.get("mode") ?? "comets", Number(q.get("speed") ?? 1), q.get("override") === "1") : null;
     const kind = (q.get("kind") ?? "fade") as Board["transition"];
     const presentation: Presentation | null = scene === "effects" ? { version: 1, id: "p", title: "t", themeId: "paper", boards: [effectsBoard] } : scene === "transition" ? transitionPresentation(kind) : null;
     const log = scene === "effects" ? effectsLog : transitionLog;
     const renderAt = (t: number) => {
-      if (presentation) renderFrame(ctx, presentation, presentationViewAt(presentation, log, t), t, env);
+      if (flow) boardRenderer.render(ctx, flow, { ...boardView(flow, []), revealedAt: new Map(flow.elements.map((e) => [e.id, -Infinity])), flowing: new Set(["fa"]) }, t, env);
+      else if (presentation) renderFrame(ctx, presentation, presentationViewAt(presentation, log, t), t, env);
       else boardRenderer.render(ctx, board, viewFor(), t, env);
       return canvas.toDataURL();
     };

@@ -1,6 +1,6 @@
 // Ported from Excaliflow (Apache-2.0), see ../NOTICE: advanced_llm_apps/excaliflow/index.html @ 40b16b6.
 // Arrow geometry, graph depth and Flow particles. Elbow arrows are not part of the domain model, so they are dropped.
-import type { Binding, Canvas2D, Element } from "@flowcam/domain";
+import { MAX_FLOW_SPEED, MIN_FLOW_SPEED, type Binding, type Canvas2D, type Element, type FlowMode } from "@flowcam/domain";
 import { applyDashStyle, applyDrawOn, mulberry32, resolveStrokeColor, type Look } from "./shapes";
 
 /** Excaliflow's flowSpeed setting (1.0) times its 0.55 base speed: loops per second. */
@@ -189,6 +189,55 @@ export function computeArrowDepths(elements: readonly Element[]): Map<string, nu
   return arrowDepths;
 }
 
+/** Other Flow modes (Excaliflow's pulses, neon and dashed branches of drawFlowParticleAt). All are pure in their arguments. */
+function drawModeParticle(ctx: Canvas2D, geom: ArrowGeometry, dist: number, phase: number, color: string, sw: number, mode: Exclude<FlowMode, "comets">, dark: boolean) {
+  const pt = pointAtArcLength(geom, dist);
+  const baseAlpha = ctx.globalAlpha;
+  ctx.save();
+  if (mode === "pulse") {
+    const ringExpand = (phase * 4) % 1;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = baseAlpha * (1 - ringExpand) * 0.75;
+    ctx.lineWidth = 1.8;
+    ctx.arc(pt.x, pt.y, 3 + ringExpand * 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = baseAlpha;
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(pt.x, pt.y, Math.max(3, sw * 1.3), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (mode === "neon") {
+    const pTail = pointAtArcLength(geom, Math.max(0, dist - Math.min(28, geom.totalLen * 0.18)));
+    ctx.beginPath();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = dark ? 18 : 12;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = sw * 2.6;
+    ctx.globalAlpha = baseAlpha * 0.85;
+    ctx.moveTo(pTail.x, pTail.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1.4, sw * 0.95);
+    ctx.globalAlpha = baseAlpha * 0.95;
+    ctx.moveTo(pTail.x, pTail.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+  } else {
+    const pBack = pointAtArcLength(geom, Math.max(0, dist - 10));
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = sw * 1.9;
+    ctx.moveTo(pBack.x, pBack.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /** The "comets" Flow mode: a fading tail and a glowing head at `dist` along the arrow. */
 function drawFlowParticleAt(ctx: Canvas2D, geom: ArrowGeometry, dist: number, color: string, sw: number) {
   const pt = pointAtArcLength(geom, dist);
@@ -306,10 +355,13 @@ export function drawArrowAndParticles(ctx: Canvas2D, el: Element, geom: ArrowGeo
   if (flowing && progress >= 1 && geom.totalLen > 24) {
     const packetCount = Math.max(1, Math.min(4, Math.round(geom.totalLen / 150)));
     const hopOffset = -depth * 0.38;
+    const speed = Math.min(MAX_FLOW_SPEED, Math.max(MIN_FLOW_SPEED, Number(el.flowSpeed) || 1)) * FLOW_SPEED;
+    const mode = el.flowMode ?? "comets";
     for (let k = 0; k < packetCount; k++) {
-      let phase = ((timeMs / 1000) * FLOW_SPEED + hopOffset + k / packetCount) % 1;
+      let phase = ((timeMs / 1000) * speed + hopOffset + k / packetCount) % 1;
       if (phase < 0) phase += 1;
-      drawFlowParticleAt(ctx, geom, phase * geom.totalLen, strokeColor, sw);
+      if (mode === "comets") drawFlowParticleAt(ctx, geom, phase * geom.totalLen, strokeColor, sw);
+      else drawModeParticle(ctx, geom, phase * geom.totalLen, phase, strokeColor, sw, mode, look.dark);
     }
   }
   ctx.restore();
