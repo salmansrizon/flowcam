@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
 import { Badge } from "@/components/ui/badge";
+import SyncStatus from "../sync/SyncStatus";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -495,6 +496,7 @@ export default function Editor() {
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
+          <SyncStatus />
         </TopBar>
         <h1 className="sr-only">Flowcam Studio</h1>
         {error && (
