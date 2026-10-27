@@ -70,7 +70,7 @@ function focusRect(view: BoardView, timeMs: number): Rect {
 /** The Board's Elements as drawn now: Theme font and roughness applied, morphs interpolated (bound arrows read these boxes). */
 function effectiveElements(board: Board, view: BoardView, timeMs: number, look: Look): Element[] {
   return board.elements.map((el) => {
-    const out = { ...el, fontFamily: look.theme.fontFamily, roughness: look.theme.roughness };
+    const out = { ...el, fontFamily: el.fontOverride ?? look.theme.fontFamily, roughness: el.roughnessOverride ?? look.theme.roughness };
     const m = view.morphs.get(el.id);
     if (!m || el.type === "arrow") return out;
     const f = ease(clamp01((timeMs - m.at) / MORPH_MS));
