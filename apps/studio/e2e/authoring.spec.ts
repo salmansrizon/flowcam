@@ -236,3 +236,136 @@ test("an .excalidraw file becomes a Board and reports what it skipped", async ({
   await page.reload();
   await expect(boardList(page)).toHaveText([/Board 1 \(1\)/, /Board 2 \(4\)/]);
 });
+
+// ---- Editor: Excaliflow's remaining UI (#30) ----
+test("undo and redo a draw, by button and by shortcut, and Undo persists", async ({ page }) => {
+  await page.goto("/");
+  await drawWith(page, "Rectangle", [0.1, 0.1], [0.3, 0.3]);
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/]);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(stepList(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(stepList(page)).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(stepList(page)).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("Board", { exact: true })).toBeVisible();
+  await expect(stepList(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+test("zoomed in, a drawn Element lands under the pointer", async ({ page }) => {
+  await page.goto("/");
+  const zoom = page.getByRole("group", { name: "Zoom" });
+  await zoom.getByRole("button", { name: "Zoom in" }).click();
+  await zoom.getByRole("button", { name: "Zoom in" }).click();
+  await zoom.getByRole("button", { name: "Zoom in" }).click();
+  await drawWith(page, "Rectangle", [0.4, 0.4], [0.6, 0.6]);
+  // Ink around the rectangle's left edge (Board x 0.4, y 0.5) and none far from it.
+  const ink = (fx: number, fy: number) =>
+    page.evaluate(([x, y]) => {
+      const { data } = document.querySelector<HTMLCanvasElement>('canvas[aria-label="Board"]')!.getContext("2d")!.getImageData(x - 20, y - 20, 40, 40);
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) n++;
+      return n;
+    }, [fx * 1920, fy * 1080]);
+  expect(await ink(0.4, 0.5)).toBeGreaterThan(20);
+  expect(await ink(0.2, 0.5)).toBe(0);
+  // Hit-testing follows the zoom: inside selects, outside does not.
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await clickBoard(page, [0.7, 0.7]);
+  await expect(page.getByRole("toolbar", { name: "Quick actions" })).toHaveCount(0);
+  await clickBoard(page, [0.5, 0.5]);
+  await expect(page.getByRole("toolbar", { name: "Quick actions" })).toBeVisible();
+  // Fit goes back to the whole Board.
+  await zoom.getByRole("button", { name: "Fit Board to screen" }).click();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await clickBoard(page, [0.7, 0.7]);
+  await clickBoard(page, [0.5, 0.5]);
+  await expect(page.getByRole("toolbar", { name: "Quick actions" })).toBeVisible();
+});
+
+test("Ctrl+wheel zooms around the cursor and a plain wheel pans", async ({ page }) => {
+  await page.goto("/");
+  const board = page.getByLabel("Board", { exact: true });
+  const before = (await board.boundingBox())!;
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -200);
+  await page.keyboard.up("Control");
+  await expect.poll(async () => (await board.boundingBox())!.width).toBeGreaterThan(before.width * 1.5);
+  const zoomed = (await board.boundingBox())!;
+  await page.mouse.wheel(0, 100);
+  await expect.poll(async () => (await board.boundingBox())!.y).toBeLessThan(zoomed.y - 50);
+});
+
+test("the quick bar duplicates and deletes the selection", async ({ page }) => {
+  await page.goto("/");
+  await drawWith(page, "Rectangle", [0.1, 0.1], [0.3, 0.3]);
+  const bar = page.getByRole("toolbar", { name: "Quick actions" });
+  await bar.getByRole("button", { name: "Duplicate" }).click();
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/, /Reveal rectangle/]);
+  await bar.getByRole("button", { name: "Delete selection" }).click();
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/]);
+});
+
+test("a Flow mode and roughness set in the Style panel persist", async ({ page }) => {
+  await page.goto("/");
+  await drawWith(page, "Arrow", [0.3, 0.2], [0.6, 0.2]);
+  await page.getByRole("tab", { name: "Style" }).click();
+  await page.getByRole("group", { name: "Flow mode" }).getByRole("button", { name: "Neon", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Neon", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("group", { name: "Roughness" }).getByRole("button", { name: "Architect" }).click();
+  await page.reload();
+  await expect(page.getByLabel("Board", { exact: true })).toBeVisible();
+  await clickBoard(page, [0.45, 0.2]);
+  await page.getByRole("tab", { name: "Style" }).click();
+  await expect(page.getByRole("button", { name: "Neon", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Architect" })).toHaveAttribute("aria-pressed", "true");
+  // "Theme default" removes the override.
+  await page.getByRole("group", { name: "Roughness" }).getByRole("button", { name: "Theme default" }).click();
+  await expect(page.getByRole("group", { name: "Roughness" }).getByRole("button", { name: "Theme default" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a Presentation saved as JSON opens again, and a bad file is refused", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await drawWith(page, "Rectangle", [0.1, 0.1], [0.3, 0.3]);
+  await page.getByRole("button", { name: "Export" }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Save Presentation (JSON)" }).click();
+  const file = testInfo.outputPath("deck.flowcam.json");
+  await (await download).saveAs(file);
+  await expect(page.getByRole("status")).toContainText("Images are not embedded");
+
+  await drawWith(page, "Ellipse", [0.6, 0.1], [0.8, 0.3]);
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/, /Reveal ellipse/]);
+  await page.getByLabel("Open Presentation JSON").setInputFiles(file);
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/]);
+  // Opening is an edit, so Undo brings the ellipse back.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/, /Reveal ellipse/]);
+
+  await page.getByLabel("Open Presentation JSON").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from('{"version":2}') });
+  await expect(page.getByRole("alert").filter({ hasText: "Could not open" })).toContainText("Could not open that file");
+  await expect(stepList(page)).toHaveText([/Reveal rectangle/, /Reveal ellipse/]);
+});
+
+test("Save PNG downloads the Board, the empty hint goes away, and the tool lock keeps the tool", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("drag on the Board")).toBeVisible();
+  await page.getByRole("button", { name: "Export" }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Save PNG" }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.png$/);
+  await page.getByRole("button", { name: "Lock tool" }).click();
+  await drawWith(page, "Rectangle", [0.1, 0.1], [0.3, 0.3]);
+  await expect(page.getByRole("button", { name: "Rectangle", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("drag on the Board")).toHaveCount(0);
+  await page.getByRole("button", { name: "Lock tool" }).click();
+  await drawWith(page, "Ellipse", [0.6, 0.1], [0.8, 0.3]);
+  await expect(page.getByRole("button", { name: "Select", exact: true })).toHaveAttribute("aria-pressed", "true");
+});

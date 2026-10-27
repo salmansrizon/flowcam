@@ -163,6 +163,8 @@ describe("parsing stored data", () => {
 
   test("valid data passes", () => {
     expect(parsePresentation(roundTrip(presentation))).toEqual(presentation);
+    const styled = { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], fontOverride: "serif", roughnessOverride: 2 }, elements[1], { ...elements[2], flowMode: "neon", flowSpeed: 1.5 }] }] };
+    expect(parsePresentation(roundTrip(styled))).toEqual(styled);
     expect(parseClipLog(roundTrip(log([{ t: 1, type: "step", index: 1 }])))).toBeTruthy();
   });
 
@@ -175,6 +177,10 @@ describe("parsing stored data", () => {
     ["image without imageId", { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], type: "image" }], steps: [] }] }, ".imageId"],
     ["focus with an empty rect", { ...presentation, boards: [{ ...board, steps: [{ id: "f", kind: "focus", rect: { x: 0, y: 0, width: 0, height: 5 } }] }] }, ".rect"],
     ["unknown Layout", { ...presentation, boards: [{ ...board, steps: [{ ...board.steps[0], layout: "pip" }] }] }, ".layout"],
+    ["unknown Flow mode", { ...presentation, boards: [{ ...board, elements: [{ ...elements[2], flowMode: "laser" }] }] }, ".flowMode"],
+    ["Flow speed too high", { ...presentation, boards: [{ ...board, elements: [{ ...elements[2], flowSpeed: 9 }] }] }, ".flowSpeed"],
+    ["unknown font override", { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], fontOverride: "comic" }] }] }, ".fontOverride"],
+    ["negative roughness override", { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], roughnessOverride: -1 }] }] }, ".roughnessOverride"],
     ["Flow Step on a non-arrow", { ...presentation, boards: [{ ...board, steps: [{ id: "f", kind: "flow", arrowId: "a", on: true }] }] }, ".arrowId"],
     ["not an object", null, "presentation"],
   ])("rejects %s", (_name, data, where) => {
