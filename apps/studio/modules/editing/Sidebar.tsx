@@ -28,8 +28,9 @@ export function Sidebar({
   setLayoutChoice,
 }: {
   edits: Edits;
-  set: (patch: Partial<Edits>) => void;
-  apply: (next: Edits) => void;
+  /** `mergeKey`: rapid changes from the same continuous control share one Undo step. */
+  set: (patch: Partial<Edits>, mergeKey?: string) => void;
+  apply: (next: Edits, mergeKey?: string) => void;
   tab: string;
   setTab: (tab: string) => void;
   /** The Layout at the playhead, for display. */
@@ -48,7 +49,7 @@ export function Sidebar({
   };
   const gradient = edits.frame.gradient;
   const color = edits.color ?? NO_COLOR_CORRECTION;
-  const setColor = (patch: Partial<typeof color>) => set({ color: { ...color, ...patch } });
+  const setColor = (patch: Partial<typeof color>) => set({ color: { ...color, ...patch } }, `color:${Object.keys(patch).join()}`);
   return (
   <aside className="w-80 shrink-0 overflow-y-auto border-l bg-sidebar p-4 text-sidebar-foreground">
     <div className="mb-3 grid gap-1.5">
@@ -141,22 +142,22 @@ export function Sidebar({
             <div className="grid gap-2 rounded-lg border p-2">
               <div aria-label="Gradient preview" className="h-8 rounded-md border" style={{ background: css(gradient) }} />
               <div className="flex items-center gap-2 text-xs">
-                <input type="color" aria-label="Gradient from" value={gradient.from} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, from: e.target.value } } })} className="h-7 w-10 cursor-pointer" />
-                <input type="color" aria-label="Gradient to" value={gradient.to} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, to: e.target.value } } })} className="h-7 w-10 cursor-pointer" />
+                <input type="color" aria-label="Gradient from" value={gradient.from} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, from: e.target.value } } }, "gradient-from")} className="h-7 w-10 cursor-pointer" />
+                <input type="color" aria-label="Gradient to" value={gradient.to} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, to: e.target.value } } }, "gradient-to")} className="h-7 w-10 cursor-pointer" />
                 <span className="ml-auto tabular-nums text-muted-foreground">{gradient.angle}°</span>
               </div>
-              <RangeInput aria-label="Gradient angle" min={0} max={360} value={gradient.angle} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, angle: Number(e.target.value) } } })} />
+              <RangeInput aria-label="Gradient angle" min={0} max={360} value={gradient.angle} onChange={(e) => set({ frame: { ...edits.frame, gradient: { ...gradient, angle: Number(e.target.value) } } }, "gradient-angle")} />
             </div>
           )}
         </Section>
         <Section title="Padding">
-          <RangeInput aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } })} />
+          <RangeInput aria-label="Padding" min={0} max={MAX_PADDING} value={edits.frame.padding} onChange={(e) => set({ frame: { ...edits.frame, padding: Number(e.target.value) } }, "padding")} />
         </Section>
         <Section title="Shadow">
-          <RangeInput aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } })} />
+          <RangeInput aria-label="Shadow" min={0} max={MAX_SHADOW} value={edits.frame.shadow} onChange={(e) => set({ frame: { ...edits.frame, shadow: Number(e.target.value) } }, "shadow")} />
         </Section>
         <Section title="Corners">
-          <RangeInput aria-label="Corners" min={0} max={MAX_CORNERS} value={edits.frame.corners ?? 20} onChange={(e) => set({ frame: { ...edits.frame, corners: Number(e.target.value) } })} />
+          <RangeInput aria-label="Corners" min={0} max={MAX_CORNERS} value={edits.frame.corners ?? 20} onChange={(e) => set({ frame: { ...edits.frame, corners: Number(e.target.value) } }, "corners")} />
         </Section>
       </TabsContent>
 

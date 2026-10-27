@@ -80,10 +80,17 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
   );
 
   /** Applies an edit, saving it and keeping the previous state for Undo. */
+  // Rapid edits from the same continuous control (typing in a field, dragging a slider) share one Undo step:
+  // callers pass a merge key. Every other edit is its own step.
+  const lastMerge = useRef<{ key: string; at: number } | null>(null);
   const apply = useCallback(
-    (next: Edits) => {
+    (next: Edits, mergeKey?: string) => {
       if (!edits || next === edits) return;
-      setHistory((h) => [...h.slice(-49), edits]);
+      const now = performance.now();
+      const last = lastMerge.current;
+      const merge = mergeKey !== undefined && last?.key === mergeKey && now - last.at < 1000;
+      if (!merge) setHistory((h) => [...h.slice(-49), edits]);
+      lastMerge.current = mergeKey === undefined ? null : { key: mergeKey, at: now };
       setEdits(next);
       save(next);
     },
@@ -260,7 +267,7 @@ export default function Review({ recordingId, edit }: { recordingId: string; edi
   const seg = edits.segments[Math.min(selected, edits.segments.length - 1)];
   const clipNo = (clipId: string) => data.recording.clips.indexOf(clipId) + 1;
   const durationOf = (clipId: string) => data.clips.find((c) => c.log.clipId === clipId)!.log.durationMs;
-  const set = (patch: Partial<Edits>) => apply({ ...edits, ...patch });
+  const set = (patch: Partial<Edits>, mergeKey?: string) => apply({ ...edits, ...patch }, mergeKey);
   const shownTime = Math.min(playing ? clock : playhead, total);
   const deadAirMs = (edits.deadAir ?? []).reduce((n, d) => n + d.end - d.start, 0);
   const seek = (t: number) => {

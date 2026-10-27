@@ -216,6 +216,16 @@ test("the multi-track Timeline: rows, zoom, and a Text track that persists", asy
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(block).toHaveAttribute("data-start", String(start));
 
+  // Typing is one Undo step, not one per keystroke.
+  await page.waitForTimeout(500);
+  await page.getByLabel("Text", { exact: true }).focus();
+  await page.keyboard.press("End");
+  await page.getByLabel("Text", { exact: true }).pressSequentially(" again", { delay: 30 });
+  await expect(page.getByLabel("Text", { exact: true })).toHaveValue("Hello there again");
+  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByLabel("Text", { exact: true })).toHaveValue("Hello there");
+
   // Delete removes it.
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(block).toHaveCount(0);

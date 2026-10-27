@@ -34,7 +34,7 @@ export function Timeline(props: {
   selected: number;
   onSeek: (t: number) => void;
   onSelect: (segment: number) => void;
-  apply: (next: Edits) => void;
+  apply: (next: Edits, mergeKey?: string) => void;
 }) {
   const { data, edits, total, playhead, selected } = props;
   const ps = useMemo(() => pieces(edits), [edits]);
@@ -182,7 +182,7 @@ export function Timeline(props: {
         <TextPanel
           key={text.id}
           text={text}
-          onChange={(patch) => props.apply(updateText(edits, text.id, patch))}
+          onChange={(patch) => props.apply(updateText(edits, text.id, patch), `text:${text.id}:${Object.keys(patch).join()}`)}
           onDelete={() => {
             props.apply(deleteText(edits, text.id));
             setTextId(null);
