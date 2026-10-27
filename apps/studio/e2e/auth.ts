@@ -73,7 +73,14 @@ export function grantPlan(email: string, plan: "pro" | "trial", days?: number) {
 }
 
 /** Deletes every leftover `e2e+...` user (safety net after crashed runs). */
+/**
+ * Removes test users a crashed run left behind. Only users older than 30 minutes: other test runs share this
+ * database and may be using their own e2e+ users right now.
+ */
 export async function deleteLeftoverTestUsers() {
+  const cutoff = Date.now() - 30 * 60 * 1000;
   const { data } = await admin().auth.admin.listUsers({ perPage: 1000 });
-  for (const u of data?.users ?? []) if (u.email?.startsWith("e2e+")) await admin().auth.admin.deleteUser(u.id);
+  for (const u of data?.users ?? []) {
+    if (u.email?.startsWith("e2e+") && Date.parse(u.created_at) < cutoff) await admin().auth.admin.deleteUser(u.id);
+  }
 }
