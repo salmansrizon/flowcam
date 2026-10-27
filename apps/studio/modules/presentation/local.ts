@@ -9,6 +9,8 @@ export interface SyncMeta {
   id: string;
   baseVersion: number;
   dirty: boolean;
+  /** Digest of the content last in sync, so re-saving unchanged content (e.g. right after a pull) is not a change. */
+  hash?: string;
 }
 
 async function readText(name: string): Promise<string | null> {

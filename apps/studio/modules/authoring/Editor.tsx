@@ -170,7 +170,7 @@ export default function Editor() {
 
   useEffect(() => {
     loadPresentation()
-      .then((p) => setPresentation(p ?? newPresentation()))
+      .then((p) => setPresentation((cur) => cur ?? p ?? newPresentation())) // never clobber edits made while a slower load (Sync pull) finished
       .catch((e) => setError(`Could not load your Presentation: ${e.message}`));
   }, []);
 

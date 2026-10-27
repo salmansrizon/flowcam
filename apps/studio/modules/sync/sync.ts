@@ -1,7 +1,7 @@
 import type { Presentation } from "@flowcam/domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { imageIdsOf, readAsset, writeAsset } from "../presentation/assets";
+import { imageIdsOf, readAsset, sha256Hex, writeAsset } from "../presentation/assets";
 import { clearMeta, readLocal, readMeta, writeLocal, writeMeta } from "../presentation/local";
 
 // Sync (ADR 0005): only for a signed-in Pro user. Everyone else makes no Sync network calls.
@@ -46,6 +46,15 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let pro: { value: boolean; at: number; uid: string } | null = null;
 
 type Ctx = { sb: SupabaseClient; uid: string };
+
+const canon = (v: unknown): string =>
+  Array.isArray(v)
+    ? `[${v.map(canon).join(",")}]`
+    : v && typeof v === "object"
+      ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(",")}}`
+      : JSON.stringify(v);
+/** Key-order-independent digest: the cloud's jsonb does not keep key order. */
+const digest = (p: Presentation) => sha256Hex(new TextEncoder().encode(canon(p)).buffer as ArrayBuffer);
 
 /** The Sync context, "off" when definitely local-only, or "unknown" when Pro status could not be checked (offline). */
 async function context(): Promise<Ctx | "off" | "unknown"> {
@@ -113,7 +122,7 @@ async function fetchCloud({ sb }: Ctx, id?: string): Promise<Cloud | null> {
 async function adopt(ctx: Ctx, c: Cloud) {
   await downloadImages(ctx, c.data);
   await writeLocal(c.data);
-  await writeMeta({ id: c.id, baseVersion: c.version, dirty: false });
+  await writeMeta({ id: c.id, baseVersion: c.version, dirty: false, hash: await digest(c.data) });
 }
 
 /** Called by the store after every local save. Cheap and network-free unless Sync is on. */
@@ -128,7 +137,8 @@ export function afterLocalSave(p: Presentation) {
     }
     if (ctx === "unknown") return set({ state: "offline" });
     const meta = await readMeta();
-    await writeMeta({ id: p.id, baseVersion: meta?.id === p.id ? meta.baseVersion : 0, dirty: true });
+    if (meta?.id === p.id && !meta.dirty && meta.hash === (await digest(p))) return; // unchanged since the last sync
+    await writeMeta({ id: p.id, baseVersion: meta?.id === p.id ? meta.baseVersion : 0, dirty: true, hash: meta?.hash });
     if (snap.state !== "conflict") schedulePush();
   });
 }
@@ -146,6 +156,7 @@ function retryLater() {
 }
 
 async function push() {
+  if (!navigator.onLine) return retryLater(); // skip the client's slow network retries
   if (snap.conflict) return;
   const ctx = await context();
   if (ctx === "off") return set({ state: "off" });
@@ -168,7 +179,7 @@ async function push() {
       if (!cloud) throw new Error("conflict without a cloud copy");
       return set({ state: "conflict", conflict: cloud });
     }
-    await writeMeta({ id: local.id, baseVersion: res.version, dirty: seq !== seen });
+    await writeMeta({ id: local.id, baseVersion: res.version, dirty: seq !== seen, hash: await digest(local) });
     set({ state: "synced" });
   } catch {
     retryLater();
@@ -208,7 +219,7 @@ export function pullOnLoad(local: Presentation | null): Promise<Presentation | n
         return local;
       }
       if (JSON.stringify(local) === JSON.stringify(cloud.data)) {
-        await writeMeta({ id: cloud.id, baseVersion: cloud.version, dirty: false });
+        await writeMeta({ id: cloud.id, baseVersion: cloud.version, dirty: false, hash: await digest(cloud.data) });
         set({ state: "synced" });
         return local;
       }
