@@ -10,7 +10,7 @@ declare global {
 
 /** Makes the Recording's Transcript on the device, in a worker. */
 export function transcribe(clips: TranscribeRequest["clips"], onProgress: (message: string) => void): Promise<Transcript> {
-  if (window.flowcamTranscribe) return window.flowcamTranscribe(clips.map(({ clipId, durationMs }) => ({ clipId, durationMs })));
+  if (process.env.NODE_ENV !== "production" && window.flowcamTranscribe) return window.flowcamTranscribe(clips.map(({ clipId, durationMs }) => ({ clipId, durationMs })));
   const worker = new Worker(new URL("./whisper.worker.ts", import.meta.url), { type: "module" });
   return new Promise<Transcript>((resolve, reject) => {
     worker.onerror = (e) => reject(new Error(e.message || "The captions worker failed to start."));

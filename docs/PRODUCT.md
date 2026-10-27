@@ -2,7 +2,7 @@
 
 Flowcam is a studio for explainer creators and online teachers. A user builds a hand-drawn Presentation, presents it step by step while their face, voice and screen are recorded, and polishes the result into a professional video. Capitalised terms (Presentation, Step, Clip…) are defined in [CONTEXT.md](../CONTEXT.md); architectural decisions are in [docs/adr/](adr/).
 
-Status: agreed design, 17 October 2026. No code yet.
+Status: agreed design, 17 October 2026. Milestones 1–3 are built in `apps/studio`: every v1 feature that runs on the device, with the designed interface. Accounts, billing, Share Links, Sync and AI are next.
 
 ## 1. Who it is for and why it wins
 
@@ -26,7 +26,7 @@ Status: agreed design, 17 October 2026. No code yet.
 - Excaliflow's hand-drawn renderer, ported (ADR 0001): handwritten fonts (including Bangla-capable Atma and Galada), sketch fills, an expanded shape library, sticky notes, freehand, text.
 - Arrows are static or have their Flow switched on, per arrow.
 - Images by upload, paste, drag-in or URL; copied into storage so links never break.
-- Presentations as a deck of Boards with Transitions; Focus Steps zoom in on part of a Board (ADR 0012).
+- Presentations as an ordered list of Boards with Transitions; Focus Steps zoom in on part of a Board (ADR 0012).
 - 4–6 Themes; about 10 Templates (lessons, explainers, system design).
 - Steps created automatically from drawing order, refined in a Steps panel: reorder, merge, change effect (reveal, draw-on, morph, highlight, Flow on/off, Focus), delete.
 - Excalidraw import (`.excalidraw` → Board). No export back.
@@ -38,7 +38,7 @@ Status: agreed design, 17 October 2026. No code yet.
 - Teleprompter strip under the webcam.
 - Keyboard: → next Step, ← previous Step, `I` Ink, `Space` pause (starts a new Clip), `R` Retake.
 - Ink: temporary marks that clear on the next Step.
-- Layouts (Camera Bubble, side by side, Camera only, Board only) with Auto-placement; a Step can carry a Layout set during Authoring.
+- Layouts (Camera Bubble, side by side, Camera only, Board only, the glossary's "Visual Source only") with Auto-placement; a Step can carry a Layout set during Authoring.
 - Clips and Retakes; the Presentation resumes from the Step where the retaken Clip began.
 
 **Review and editing**
@@ -176,6 +176,7 @@ flowchart TB
         ST[(Supabase Storage<br/>Sync copies, Images)]
         Q[Supabase queue + worker<br/>AI Jobs, ADR 0010]
         M[Mux<br/>Share Link playback]
+        R2[(Cloudflare R2<br/>overflow, cooled links,<br/>desktop installers)]
     end
     OR[OpenRouter<br/>text, image, voice, video]
     S[Lemon Squeezy<br/>billing, tax]
@@ -188,6 +189,9 @@ flowchart TB
     V --> Q --> OR
     Q --> ST
     V --> S
+    M -.->|over allowance or idle 90 days| R2
+    Client -->|event names only| PH[PostHog<br/>analytics]
+    Client -->|sign-up, Free AI Jobs| TS[Cloudflare Turnstile]
 ```
 
 **Core decisions**
@@ -213,6 +217,7 @@ flowchart TB
 | Credits | Append-only Credit Ledger with Holds | 0011 |
 | Presentations | Deck of Boards with Focus Steps | 0012 |
 | Editor | Match Cap's features in our own code; reuse only Cap's MIT capture crates | 0013 |
+| Interface | Framework-free Board renderer inside React; Tailwind CSS and shadcn/ui; Cap's layout as visual reference | 0018 |
 
 **AI routing**
 
