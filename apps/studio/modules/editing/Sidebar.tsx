@@ -1,7 +1,7 @@
 "use client";
 
 import { LAYOUTS, type Layout } from "@flowcam/domain";
-import { Download, Trash2 } from "lucide-react";
+import { Download, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,19 @@ export function Sidebar({
             </option>
           ))}
         </NativeSelect>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="Apply preset again"
+          disabled={!picked}
+          onClick={() => {
+            const p = presets.find((x) => x.name === picked);
+            if (p) apply(applyPreset(edits, p));
+          }}
+        >
+          <RotateCcw />
+        </Button>
         <Button
           type="button"
           variant="outline"

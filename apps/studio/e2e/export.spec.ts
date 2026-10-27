@@ -273,6 +273,11 @@ test("the gradient editor, colour sliders and presets change the look", async ({
   await expect(page.getByRole("radio", { name: "blue" })).toHaveAttribute("data-state", "on");
   await expect.poll(corner).toEqual([28, 126, 214]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("flowcam.presets")!)[0].name)).toBe("Blue look");
+  // The same preset can be applied again after the look changes.
+  await page.getByRole("radio", { name: "black" }).click();
+  await expect.poll(corner).toEqual([0, 0, 0]);
+  await page.getByRole("button", { name: "Apply preset again" }).click();
+  await expect.poll(corner).toEqual([28, 126, 214]);
   await page.getByRole("button", { name: "Delete preset" }).click();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("flowcam.presets")!))).toEqual([]);
 

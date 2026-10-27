@@ -704,7 +704,9 @@ export default function Editor() {
   const dragFrom = useRef<number | null>(null);
   const isEmpty = presentation?.boards.length === 1 && isEmptyBoard(presentation.boards[0]);
   const firstSelected = board?.elements.find((e) => e.id === selected[0]);
-  const restyle = (patch: Parameters<typeof restyleElements>[2], key?: string) => update((b) => restyleElements(b, selected, patch), { key });
+  // Merge keys include the selection, so dragging a slider on one Element then another is two Undo steps.
+  const restyle = (patch: Parameters<typeof restyleElements>[2], key?: string) =>
+    update((b) => restyleElements(b, selected, patch), { key: key && `${key}:${selected.join()}` });
   const selectedEls = board ? board.elements.filter((e) => selected.includes(e.id)) : [];
   const selectedArrows = selectedEls.filter((e) => e.type === "arrow");
   const empty = board?.elements.length === 0;
