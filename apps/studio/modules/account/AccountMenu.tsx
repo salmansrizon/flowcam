@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { planLabel, type PlanLabel } from "./plan";
+import { CreditBalance } from "../credits/CreditBalance";
 
 type Who = { email: string; plan: PlanLabel } | "out" | null; // null while loading
 
@@ -60,6 +61,7 @@ export function AccountMenu() {
           <Badge variant={who.plan === "Free" ? "secondary" : "default"} className="w-fit" data-testid="plan">
             {who.plan}
           </Badge>
+          <CreditBalance />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => void supabaseBrowser().auth.signOut()}>

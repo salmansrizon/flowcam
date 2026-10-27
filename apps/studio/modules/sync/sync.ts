@@ -54,7 +54,7 @@ const canon = (v: unknown): string =>
       ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(",")}}`
       : JSON.stringify(v);
 /** Key-order-independent digest: the cloud's jsonb does not keep key order. */
-const digest = (p: Presentation) => sha256Hex(new TextEncoder().encode(canon(p)).buffer as ArrayBuffer);
+export const digest = (p: Presentation) => sha256Hex(new TextEncoder().encode(canon(p)).buffer as ArrayBuffer);
 
 /** The Sync context, "off" when definitely local-only, or "unknown" when Pro status could not be checked (offline). */
 async function context(): Promise<Ctx | "off" | "unknown"> {
@@ -218,7 +218,7 @@ export function pullOnLoad(local: Presentation | null): Promise<Presentation | n
         else set({ state: "synced" });
         return local;
       }
-      if (JSON.stringify(local) === JSON.stringify(cloud.data)) {
+      if ((await digest(local)) === (await digest(cloud.data))) {
         await writeMeta({ id: cloud.id, baseVersion: cloud.version, dirty: false, hash: await digest(cloud.data) });
         set({ state: "synced" });
         return local;
