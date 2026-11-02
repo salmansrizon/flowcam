@@ -18,6 +18,7 @@ import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
 import { FontPicker } from "@/components/studio/FontPicker";
 import SyncStatus from "../sync/SyncStatus";
+import { ScriptUpload } from "../scripts/ScriptUpload";
 import { FirstVisit } from "../onboarding/FirstVisit";
 import { firstVisitSample } from "../onboarding/sample";
 import { ProBadge } from "../onboarding/ProBadge";
@@ -1203,6 +1204,7 @@ export default function Editor() {
                 </TabsContent>
 
                 <TabsContent value="script" className="flex flex-col gap-2 p-3">
+                  <ScriptUpload labels={board ? board.steps.map((_, i) => stepLabel(board, i)) : []} onApply={(texts) => update((b) => texts.reduce((acc, t, i) => updateStep(acc, i, { script: t }), b))} />
                   {step && activeStep !== null ? (
                     <>
                       <h3 className="text-xs font-medium text-muted-foreground">Step {activeStep + 1}</h3>
