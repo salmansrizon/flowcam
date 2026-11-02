@@ -320,6 +320,23 @@ test("a Flow mode and roughness set in the Style panel persist", async ({ page }
   await page.getByRole("group", { name: "Flow mode" }).getByRole("button", { name: "Neon", exact: true }).click();
   await expect(page.getByRole("button", { name: "Neon", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("group", { name: "Roughness" }).getByRole("button", { name: "Architect" }).click();
+  // Saving is asynchronous; reload only once both settings are on disk (slow CI machines lag here).
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const root = await navigator.storage.getDirectory();
+        const read = async (dir: FileSystemDirectoryHandle, name: string) => (await (await dir.getFileHandle(name)).getFile()).text();
+        try {
+          const legacy = await read(root, "presentation.json").catch(() => null);
+          const text = legacy ?? (await read(await root.getDirectoryHandle("presentations"), `${JSON.parse(await read(root, "current.json")).id}.json`));
+          const arrow = JSON.parse(text).boards[0].elements.find((e: { type: string }) => e.type === "arrow");
+          return `${arrow?.flowMode}/${arrow?.roughnessOverride}`;
+        } catch {
+          return "unsaved";
+        }
+      }),
+    )
+    .toMatch(/^neon\/\d/);
   await page.reload();
   await expect(page.getByLabel("Board", { exact: true })).toBeVisible();
   await clickBoard(page, [0.45, 0.2]);
