@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
 
+// Onboarding (a sample Presentation on first visit) would intercept these tests, which start from an empty editor.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("flowcam.onboarding", "done"));
+});
+
 async function drawWith(page: Page, tool: string, from: [number, number], to: [number, number]) {
   await page.getByRole("button", { name: tool, exact: true }).click();
   const box = (await page.getByLabel("Board", { exact: true }).boundingBox())!;
