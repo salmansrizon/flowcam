@@ -38,7 +38,7 @@ describe.skipIf(!key || !url)("AI Jobs against the dev database (skipped: SUPABA
     ({ demoProvider } = await import("./demo"));
   });
   afterAll(async () => {
-    // ponytail: users with ledger lines cannot be deleted yet (append-only trigger blocks the cascade; see credits.db.test.ts).
+    // Ledger lines go with the deleted user (migration 20261027000400).
     for (const id of created) await db.auth.admin.deleteUser(id);
   });
 
