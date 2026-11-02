@@ -13,6 +13,7 @@ export function TopBar({ children, actions, className }: { children?: React.Reac
         <span aria-hidden className="grid size-7 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">F</span>
         Flowcam
       </Link>
+      <Link href="/library" className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground">Presentations</Link>
       <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
       <div className="flex items-center gap-2">{actions}<AccountMenu /></div>
     </header>
