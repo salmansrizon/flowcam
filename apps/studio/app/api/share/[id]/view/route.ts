@@ -5,7 +5,7 @@ import { getShare, isPlayable } from "@/modules/share/links";
 export async function POST(_req: Request, ctx: RouteContext<"/api/share/[id]/view">) {
   const link = await getShare((await ctx.params).id);
   if (!link || !(await isPlayable(link))) return Response.json({ error: "Not found." }, { status: 404 });
-  // ponytail: read-then-write can lose a count under a race; a SQL increment function is the upgrade.
-  await supabaseAdmin().from("share_links").update({ views: link.views + 1 }).eq("id", link.id);
-  return Response.json({ views: link.views + 1 });
+  const { data, error } = await supabaseAdmin().rpc("count_share_view", { link_id: link.id });
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ views: data as number });
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { foundingOpen } from "../onboarding/pricing";
-import { billingProvider, loadPricingServer } from "./billing";
+import { billing, billingProvider, loadPricingServer } from "./billing";
 import { parseEvent, periodStart, type BillingEvent } from "./events";
 import { sign, verifySignature } from "./signature";
 
@@ -9,6 +9,12 @@ export type Result = { status: number; body: { ok?: boolean; error?: string; dup
 
 /** Handles one webhook delivery: verify, record once in `billing_events`, then apply it. Repeats do nothing. */
 export async function handleWebhook(rawBody: string, signature: string | null): Promise<Result> {
+  // The "demo" secret is public: refuse it unless demo billing is allowed (billing() refuses demo in production).
+  try {
+    if (billing().name !== "demo" && process.env.LEMONSQUEEZY_WEBHOOK_SECRET === "demo") throw new Error("LEMONSQUEEZY_WEBHOOK_SECRET is still demo.");
+  } catch (e) {
+    return { status: 500, body: { error: (e as Error).message } };
+  }
   if (!verifySignature(rawBody, signature, process.env.LEMONSQUEEZY_WEBHOOK_SECRET)) return { status: 401, body: { error: "Bad signature." } };
   let json: unknown;
   try {
