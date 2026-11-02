@@ -109,9 +109,10 @@ export function formatPrice(p: Price | undefined): string {
 }
 
 /** Prices from `ai_job_config` (anyone can read it); null while loading or when unavailable. */
-export function useAiPrices(): Prices | null {
+export function useAiPrices(enabled = true): Prices | null {
   const [prices, setPrices] = useState<Prices | null>(null);
   useEffect(() => {
+    if (!enabled) return; // closed dialogs make no requests (signed-out visitors make no Supabase requests at all)
     let live = true;
     (async () => {
       try {
@@ -125,6 +126,6 @@ export function useAiPrices(): Prices | null {
     return () => {
       live = false;
     };
-  }, []);
+  }, [enabled]);
   return prices;
 }
