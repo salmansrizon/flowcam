@@ -247,13 +247,18 @@ test("the Review in dark mode has the settings tabs", async ({ page }) => {
   await page.screenshot(shot("timeline-dark"));
 });
 
-test("4K export is shown as Pro and cannot be chosen", async ({ page }) => {
+test("4K export is shown as Pro and opens the upgrade panel", async ({ page }) => {
   test.setTimeout(60_000);
   const recordingId = await record(page, 1, 1000);
   await page.goto(`/review?recording=${recordingId}`);
   await page.getByRole("button", { name: "Export", exact: true }).click();
-  await expect(page.getByRole("option", { name: "4K (Pro)" })).toHaveJSProperty("disabled", true);
-  await expect(page.getByText("Pro", { exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "4K (Pro)" })).toBeAttached();
+  await expect(page.getByRole("button", { name: "Pro", exact: true })).toBeVisible();
+  // Choosing 4K opens the upgrade panel instead, and the resolution stays 1080p.
+  await page.getByRole("combobox", { name: "Resolution" }).selectOption("4k");
+  await expect(page.getByRole("dialog", { name: /4K export/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("combobox", { name: "Resolution" })).toHaveValue("1080p");
 });
 
 // Real on-device Whisper: downloads the model on first run. Run with FLOWCAM_WHISPER=1.
