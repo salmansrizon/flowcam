@@ -93,7 +93,16 @@ interface StepBase {
   script?: string;
   /** Layout from this Step on, until a later Step sets another. */
   layout?: Layout;
+  /** What plays for this Step in a Narrated Recording (CONTEXT.md: Narration). */
+  narration?: Narration;
 }
+
+/**
+ * The user's own voice recorded for the Step (stored like Images, in OPFS assets/<sha256>), or silence for a set
+ * time. AI Voiceover is a later kind.
+ */
+export type Narration = { kind: "voice"; assetId: string; durationMs: number } | { kind: "silence"; durationMs: number };
+export const MAX_NARRATION_MS = 10 * 60 * 1000;
 
 export type Step = StepBase &
   (

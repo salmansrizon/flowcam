@@ -1,4 +1,4 @@
-import { ELEMENT_TYPES, FLOW_MODES, FONT_IDS, LAYOUTS, MAX_FLOW_SPEED, MAX_ROUGHNESS, MIN_FLOW_SPEED, THEMES, TRANSITIONS, type Board, type Element, type Presentation, type Step } from "./model";
+import { ELEMENT_TYPES, FLOW_MODES, FONT_IDS, LAYOUTS, MAX_FLOW_SPEED, MAX_NARRATION_MS, MAX_ROUGHNESS, MIN_FLOW_SPEED, THEMES, TRANSITIONS, type Board, type Element, type Presentation, type Step } from "./model";
 import { LOG_SCHEMA_VERSION, type ClipLog, type LogEvent } from "./log";
 
 // Data read back from browser storage or the cloud is untrusted: check shape before use.
@@ -73,6 +73,14 @@ function step(v: unknown, path: string, ids: Set<string>, arrows: Set<string>): 
   str(o.id, `${path}.id`);
   if (o.script !== undefined) str(o.script, `${path}.script`);
   if (o.layout !== undefined) oneOf(o.layout, LAYOUTS, `${path}.layout`);
+  if (o.narration !== undefined) {
+    const n = obj(o.narration, `${path}.narration`);
+    const kind = oneOf(n.kind, ["voice", "silence"], `${path}.narration.kind`);
+    if (kind === "voice") str(n.assetId, `${path}.narration.assetId`);
+    if (!(num(n.durationMs, `${path}.narration.durationMs`) > 0 && (n.durationMs as number) <= MAX_NARRATION_MS)) {
+      fail(`${path}.narration.durationMs`, `more than 0 and at most ${MAX_NARRATION_MS}`);
+    }
+  }
   const kind = oneOf(o.kind, ["reveal", "flow", "highlight", "focus", "morph"], `${path}.kind`);
   const refs =
     kind === "reveal" || kind === "highlight"

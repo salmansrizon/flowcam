@@ -115,7 +115,9 @@ test("Board Images appear in the exported video", async ({ page }) => {
       strokeWidth: 2, strokeStyle: "solid", roughness: 0.85, fontFamily: "hand", fontSize: 28, text: "", seed: 1, imageId: id,
     };
     const presentation = { version: 1, id: "p-img", title: "Image", themeId: "paper", boards: [{ id: "b-img", elements: [image], steps: [] }] };
-    await write(root, "presentation.json", JSON.stringify(presentation));
+    // Stored as the app stores it (see e2e/seed.ts), not as the pre-library presentation.json.
+    await write(await root.getDirectoryHandle("presentations", { create: true }), `${presentation.id}.json`, JSON.stringify(presentation));
+    await write(root, "current.json", JSON.stringify({ id: presentation.id }));
   });
   await page.reload();
   await page.getByRole("button", { name: "Start" }).click();

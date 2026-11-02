@@ -18,11 +18,15 @@ import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
 import { FontPicker } from "@/components/studio/FontPicker";
 import SyncStatus from "../sync/SyncStatus";
+import { ScriptUpload } from "../scripts/ScriptUpload";
 import { FirstVisit } from "../onboarding/FirstVisit";
 import { firstVisitSample } from "../onboarding/sample";
 import { ProBadge } from "../onboarding/ProBadge";
 import { UpgradePanel } from "../onboarding/UpgradePanel";
 import { hasPro, usePlan } from "../onboarding/usePlan";
+import { NarrationControls } from "../narration/NarrationControls";
+import { MakeNarrated } from "../narration/MakeNarrated";
+import { setNarration } from "../narration/timing";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -1203,6 +1207,7 @@ export default function Editor() {
                 </TabsContent>
 
                 <TabsContent value="script" className="flex flex-col gap-2 p-3">
+                  <ScriptUpload labels={board ? board.steps.map((_, i) => stepLabel(board, i)) : []} onApply={(texts) => update((b) => texts.reduce((acc, t, i) => updateStep(acc, i, { script: t }), b))} />
                   {step && activeStep !== null ? (
                     <>
                       <h3 className="text-xs font-medium text-muted-foreground">Step {activeStep + 1}</h3>
@@ -1214,10 +1219,12 @@ export default function Editor() {
                         value={step.script ?? ""}
                         onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }), { key: `script-${indexRef.current}-${activeStep}` })}
                       />
+                      <NarrationControls key={step.id} script={step.script ?? ""} narration={step.narration} onChange={(n) => update((b) => setNarration(b, activeStep, n))} />
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">Pick a Step in the Steps tab to write its Script.</p>
                   )}
+                  {presentation && <MakeNarrated presentation={presentation} onFill={(fill) => updateDeck(fill)} />}
                 </TabsContent>
               </Tabs>
             )}
