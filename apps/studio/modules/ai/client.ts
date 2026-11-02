@@ -59,7 +59,7 @@ export async function waitForJob<K extends AiJobKind>(
       if (!job.result) throw new AiError(500, "The Job finished without a result.");
       return job.result;
     }
-    if (job.status === "failed") throw new AiError(500, job.error ?? "The Job failed.");
+    if (job.status === "failed") throw new AiError(500, `failed: ${job.error ?? "the Job failed"}`);
     if (Date.now() + intervalMs > deadline) throw new AiError(504, "This is taking too long. Try again in a moment.");
     await new Promise((r) => setTimeout(r, intervalMs));
   }

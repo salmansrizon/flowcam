@@ -19,8 +19,8 @@ test("Start from appears after dismissal, Blank gives an empty Board, and it is 
 
   const dialog = page.getByRole("dialog", { name: "Start from" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: /Generate from a topic/ })).toBeDisabled();
-  await expect(dialog).toContainText("Coming soon: needs AI Credits");
+  await expect(dialog.getByRole("button", { name: /Generate from a topic/ })).toBeEnabled();
+  await expect(dialog).toContainText("Uses AI Credits");
   await dialog.getByRole("button", { name: "Blank" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(title(page)).toHaveValue("Untitled");
