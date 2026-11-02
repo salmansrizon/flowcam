@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { StartTrialButton } from "../billing/BillingButtons";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProBadge } from "./ProBadge";
 import { foundingOpen, money, type Pricing } from "./pricing";
@@ -18,8 +18,8 @@ export function UpgradePanel({ feature, benefit, open, onOpenChange }: { feature
         </DialogHeader>
         {open && <PricingBody />}
         <DialogFooter className="items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">Billing is coming soon</span>
-          <Button disabled>Start Trial</Button>
+          <span className="text-xs text-muted-foreground">Card required. Cancel any time.</span>
+          <StartTrialButton />
         </DialogFooter>
       </DialogContent>
     </Dialog>

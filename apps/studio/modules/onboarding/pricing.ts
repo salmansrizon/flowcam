@@ -10,10 +10,12 @@ export interface Pricing {
   trialDays: number;
   trialCredits: number;
   monthlyCredits: number;
+  topupCents: number;
+  topupCredits: number;
 }
 
-const INT = ["list_monthly_cents", "list_yearly_cents", "founding_monthly_cents", "founding_yearly_cents", "founding_max_subscribers", "trial_days", "trial_credits", "monthly_credits"] as const;
-const POSITIVE = ["list_monthly_cents", "list_yearly_cents", "founding_monthly_cents", "founding_yearly_cents", "trial_days"] as const;
+const INT = ["list_monthly_cents", "list_yearly_cents", "founding_monthly_cents", "founding_yearly_cents", "founding_max_subscribers", "trial_days", "trial_credits", "monthly_credits", "topup_cents", "topup_credits"] as const;
+const POSITIVE = ["list_monthly_cents", "list_yearly_cents", "founding_monthly_cents", "founding_yearly_cents", "trial_days", "topup_cents", "topup_credits"] as const;
 
 /** Validates a `pricing` row. Anything missing or malformed gives null, so the UI shows no numbers rather than wrong ones. */
 export function parsePricing(row: unknown): Pricing | null {
@@ -39,6 +41,8 @@ export function parsePricing(row: unknown): Pricing | null {
     trialDays: r.trial_days as number,
     trialCredits: r.trial_credits as number,
     monthlyCredits: r.monthly_credits as number,
+    topupCents: r.topup_cents as number,
+    topupCredits: r.topup_credits as number,
   };
 }
 
@@ -47,4 +51,11 @@ export const foundingOpen = (p: Pricing, now = new Date()) => p.foundingUntil ==
 
 export function money(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
+}
+
+/** What a Pro plan costs now: the Founding Price while its window is open, the list price after (ADR 0008). */
+export function proPriceCents(p: Pricing, interval: "month" | "year", now = new Date()): number {
+  const founding = foundingOpen(p, now);
+  if (interval === "month") return founding ? p.foundingMonthlyCents : p.listMonthlyCents;
+  return founding ? p.foundingYearlyCents : p.listYearlyCents;
 }
