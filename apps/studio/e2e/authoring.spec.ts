@@ -339,6 +339,9 @@ test("a Flow mode and roughness set in the Style panel persist", async ({ page }
     .toMatch(/^neon\/\d/);
   await page.reload();
   await expect(page.getByLabel("Board", { exact: true })).toBeVisible();
+  // The canvas shows before the Presentation finishes loading from storage; wait for the arrow first.
+  await page.getByRole("tab", { name: "Steps" }).click();
+  await expect(stepList(page)).toHaveText([/Reveal arrow/]);
   await clickBoard(page, [0.45, 0.2]);
   await page.getByRole("tab", { name: "Style" }).click();
   await expect(page.getByRole("button", { name: "Neon", exact: true })).toHaveAttribute("aria-pressed", "true");
