@@ -45,7 +45,7 @@ export interface EditableRecording {
 export async function loadEditable(recordingId: string): Promise<EditableRecording> {
   const recording = await readRecording(recordingId);
   // The current Presentation, so edits made after recording appear (ADR 0002).
-  const presentation = await loadPresentation();
+  const presentation = await loadPresentation(recording.presentationId);
   if (presentation.id !== recording.presentationId) throw new Error("The Presentation this Recording was made from no longer exists.");
   const clips = await Promise.all(
     recording.clips.map(async (id) => ({ log: await readClipLog(recordingId, id), media: await readClipMedia(recordingId, id) })),

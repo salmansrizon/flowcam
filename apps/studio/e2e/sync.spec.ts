@@ -67,6 +67,7 @@ test("a Pro user syncs between two browsers, and an offline edit on both sides r
   const ctxB = await browser.newContext();
   await signInContext(ctxA, baseURL!, email, password);
   await signInContext(ctxB, baseURL!, email, password);
+  for (const c of [ctxA, ctxB]) await c.addInitScript(() => localStorage.setItem("flowcam.onboarding", "done")); // skip onboarding
   const a = await ctxA.newPage();
   const b = await ctxB.newPage();
 
@@ -109,6 +110,7 @@ test("a Pro user syncs between two browsers, and an offline edit on both sides r
 });
 
 test("signed-out visitors make no Sync requests", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("flowcam.onboarding", "done")); // skip onboarding
   const sync: string[] = [];
   page.on("request", (r) => {
     if (r.url().includes(".supabase.co")) sync.push(r.url());

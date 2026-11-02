@@ -99,7 +99,7 @@ async function uploadImages({ sb, uid }: Ctx, p: Presentation) {
   }
 }
 
-async function downloadImages({ sb, uid }: Ctx, p: Presentation) {
+export async function downloadImages({ sb, uid }: Ctx, p: Presentation) {
   for (const id of imageIdsOf(p)) {
     try {
       await readAsset(id);
@@ -242,6 +242,7 @@ export function resolveConflict(choice: "keep-both" | "use-cloud"): Promise<void
       const local = await readLocal();
       if (local) {
         const copy = { ...local, id: crypto.randomUUID(), title: `${local.title} (copy)` };
+        await writeLocal(copy, { makeCurrent: false }); // The copy appears in the library.
         await uploadImages(ctx, copy);
         const { error } = await ctx.sb.rpc("save_presentation", { p_id: copy.id, p_base_version: 0, p_data: copy });
         if (error) throw error;

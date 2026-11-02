@@ -17,8 +17,12 @@ import { cn } from "@/lib/utils";
 import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
 import { FontPicker } from "@/components/studio/FontPicker";
-import { Badge } from "@/components/ui/badge";
 import SyncStatus from "../sync/SyncStatus";
+import { FirstVisit } from "../onboarding/FirstVisit";
+import { firstVisitSample } from "../onboarding/sample";
+import { ProBadge } from "../onboarding/ProBadge";
+import { UpgradePanel } from "../onboarding/UpgradePanel";
+import { hasPro, usePlan } from "../onboarding/usePlan";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -200,13 +204,26 @@ export default function Editor() {
 
   useEffect(() => {
     loadPresentation()
+      .then(async (p) => p ?? (await firstVisitSample()) ?? newPresentation())
       .then((p) => {
         if (presRef.current) return; // never clobber edits made while a slower load (Sync pull) finished
-        presRef.current = p ?? newPresentation();
+        presRef.current = p;
         setPresentation(presRef.current);
       })
       .catch((e) => setError(`Could not load your Presentation: ${e.message}`));
   }, []);
+
+  const plan = usePlan();
+  const [shareOpen, setShareOpen] = useState(false);
+  /** Onboarding's "Start from": switch to a new Presentation (the save effect persists it and makes it current). */
+  function openNew(p: Presentation) {
+    presRef.current = p;
+    history.current = emptyHistory();
+    setPresentation(p);
+    setBoardIndex(0);
+    setSelected([]);
+    setActiveStep(null);
+  }
 
   type EditOpts = { record?: boolean; key?: string };
   /** Every edit goes through here: it snapshots the Presentation for Undo (edits with the same `key` in a row, like typing, share one snapshot). */
@@ -748,7 +765,11 @@ export default function Editor() {
               </DropdownMenu>
               <Button asChild variant="outline"><a href="/record">Try</a></Button>
               <Button asChild><a href="/record">Record</a></Button>
-              <Button variant="outline" disabled>Share <Badge variant="secondary">Pro</Badge></Button>
+              {hasPro(plan) ? (
+                <Button variant="outline" disabled>Share</Button>
+              ) : (
+                <Button variant="outline" onClick={() => setShareOpen(true)}>Share <ProBadge /></Button>
+              )}
             </>
           }
         >
@@ -770,6 +791,8 @@ export default function Editor() {
           <SyncStatus />
         </TopBar>
         <h1 className="sr-only">Flowcam Studio</h1>
+        <FirstVisit onPick={openNew} />
+        <UpgradePanel feature="Share" benefit="Share a link to your Presentation and recordings with anyone." open={shareOpen} onOpenChange={setShareOpen} />
         <div className="flex min-h-0 flex-1">
           <nav aria-label="Boards" className={cn("flex shrink-0 flex-col gap-2 border-r bg-background p-2", boardsOpen ? "w-52" : "w-12 items-center")}>
             <div className="flex items-center justify-between">

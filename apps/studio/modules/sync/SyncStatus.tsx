@@ -3,6 +3,9 @@
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ProBadge } from "../onboarding/ProBadge";
+import { UpgradePanel } from "../onboarding/UpgradePanel";
+import { usePlan } from "../onboarding/usePlan";
 import { getServerSnapshot, getSnapshot, resolveConflict, subscribe } from "./sync";
 
 const LABEL = { synced: "Saved to cloud", syncing: "Syncing…", offline: "Offline", conflict: "Conflict" } as const;
@@ -12,7 +15,17 @@ export default function SyncStatus() {
   const { state, conflict } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (state === "off") return null;
+  const plan = usePlan();
+  const [upsell, setUpsell] = useState(false);
+  if (state === "off") {
+    // Signed-in Free users see what Sync would give them; everyone else sees nothing.
+    return plan === "Free" ? (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setUpsell(true)}>Sync <ProBadge /></Button>
+        <UpgradePanel feature="Sync" benefit="Keep your Presentations saved to the cloud and in step across your devices." open={upsell} onOpenChange={setUpsell} />
+      </>
+    ) : null;
+  }
 
   async function resolve(choice: "keep-both" | "use-cloud") {
     setBusy(true);

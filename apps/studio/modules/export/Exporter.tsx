@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { NativeSelect } from "../editing/ui";
+import { UpgradePanel } from "../onboarding/UpgradePanel";
+import { hasPro, usePlan } from "../onboarding/usePlan";
 import { runExport } from "./run-export";
 import type { ExportRequest } from "./export.worker";
 
@@ -22,6 +24,8 @@ declare global {
  * Review uses it in its top bar; the /export page shows it open (`standalone`).
  */
 export default function Exporter({ recordingId, standalone = false }: { recordingId: string; standalone?: boolean }) {
+  const pro = hasPro(usePlan());
+  const [upgrade, setUpgrade] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,14 +66,17 @@ export default function Exporter({ recordingId, standalone = false }: { recordin
           <label htmlFor="export-resolution" className="text-sm font-medium">
             Resolution
           </label>
-          <NativeSelect id="export-resolution" value={resolution} onChange={(e) => setResolution(e.target.value as typeof resolution)} aria-label="Resolution">
+          <NativeSelect id="export-resolution" value={resolution} onChange={(e) => (e.target.value === "4k" && !pro ? setUpgrade(true) : setResolution(e.target.value as typeof resolution))} aria-label="Resolution">
             <option value="1080p">1080p</option>
-            {/* Every local user is Free; 4K is a Pro feature (CONTEXT.md: Plan). */}
-            <option value="4k" disabled>
-              4K (Pro)
-            </option>
+            {/* 4K is a Pro feature (CONTEXT.md: Plan); for Free users choosing it opens the upgrade panel. */}
+            <option value="4k">{pro ? "4K" : "4K (Pro)"}</option>
           </NativeSelect>
-          <Badge title="4K export comes with Pro">Pro</Badge>
+          {!pro && (
+            <button type="button" aria-label="Pro" title="4K export comes with Pro" onClick={() => setUpgrade(true)}>
+              <Badge>Pro</Badge>
+            </button>
+          )}
+          <UpgradePanel feature="4K export" benefit="Export your video in sharp 4K." open={upgrade} onOpenChange={setUpgrade} />
         </div>
         <div>
           <Button onClick={start} disabled={progress !== null}>
