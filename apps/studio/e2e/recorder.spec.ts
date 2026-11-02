@@ -1,3 +1,4 @@
+import { seedPresentation } from "./seed";
 import { expect, test, type Page } from "@playwright/test";
 import { parseClipLog, type Element, type Presentation } from "@flowcam/domain";
 
@@ -189,11 +190,7 @@ test("a Clip's media reaches disk while it is still recording", async ({ page })
 test("moves between Boards with the Teleprompter and the Step's Layout in the Presenter View", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("/record");
-  await page.evaluate(async (json) => {
-    const out = await (await (await navigator.storage.getDirectory()).getFileHandle("presentation.json", { create: true })).createWritable();
-    await out.write(json);
-    await out.close();
-  }, JSON.stringify(twoBoards));
+  await seedPresentation(page, twoBoards);
   await page.reload();
   await expect(page.getByText("Presenting “Two Boards”.")).toBeVisible();
   await page.getByRole("button", { name: "Start" }).click();
