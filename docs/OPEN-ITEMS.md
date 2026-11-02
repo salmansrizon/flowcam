@@ -8,7 +8,7 @@ Questions the design in [PRODUCT.md](PRODUCT.md) leaves unresolved. Each must be
 | 2 | Sales tax approach | Decision | v1 (before billing goes live) | **Closed** |
 | 3 | Supabase upload limit | Fact + decision | v1 (before first Pro user) | **Closed** |
 | 4 | Mediabunny fragmented MP4 | Fact | v1 (before export is built) | **Closed** |
-| 5 | Fair-use cap for viral Share Links | Decision | v1 | **Closed** |
+| 5 | Fair-use cap for viral Share Links | Decision | v1 | Decided; terms of service still to state it |
 | 6 | Conversion rate | Measurement | 60 days after v1 | Measuring from launch |
 | 7 | Domain purchase | Action | Before launch | Chosen, not bought |
 
@@ -16,7 +16,7 @@ Questions the design in [PRODUCT.md](PRODUCT.md) leaves unresolved. Each must be
 
 - **Unknown:** what OpenRouter charges per second for picture-to-video models (Wan 2.7, Seedance 2.0 mini, Veo 3.1, Kling v3.0 Pro). Its models API returns `0` for these; prices are only on the model pages.
 - **Why it matters:** video is the only AI Job expensive enough to lose money if mispriced. Credit prices (~120 Standard, ~600 Best per 5 seconds) are placeholders.
-- **How to close:** read each model's page on openrouter.ai, or run one paid 5-second generation per model and read the cost from the response. Set Credit prices at about 3× cost (ADR 0007).
+- **How to close:** read each model's page on openrouter.ai, or run one paid 5-second generation per model and read the cost from the response. Set Credit prices at about 3× cost (PRODUCT.md §5).
 - **Answer (17 Oct 2026):** OpenRouter publishes video prices in a separate API, `GET /api/v1/videos/models` (field `pricing_skus`). Per second of output, without audio (Video Elements are silent; Narration is separate):
 
   | Model | Price per second | 5-second clip |
@@ -49,7 +49,7 @@ Questions the design in [PRODUCT.md](PRODUCT.md) leaves unresolved. Each must be
 
 ## 4. Mediabunny fragmented MP4
 
-- **Unknown:** whether Mediabunny (MPL-2.0) can write fragmented MP4, which export and crash-safe Clip saving rely on (ADR 0002).
+- **Unknown:** whether Mediabunny (MPL-2.0) can write fragmented MP4, which export and crash-safe Clip saving rely on (ADR 0002, ADR 0005).
 - **Why it matters:** if it cannot, the export pipeline needs a different muxer before it is built.
 - **How to close:** read Mediabunny's docs, then build a 10-second proof of concept: canvas frames → WebCodecs → Mediabunny → playable fragmented MP4 in Chrome, Firefox and Safari.
 - **Answer (17 Oct 2026):** supported. `new Mp4OutputFormat({ fastStart: 'fragmented' })` writes fragmented MP4, with `minimumFragmentDuration` and `onMoof`/`onMdat` callbacks that hand over each fragment as it is written, which suits saving Clips as they record. The 10-second cross-browser proof of concept is still worth doing as the first export task.
