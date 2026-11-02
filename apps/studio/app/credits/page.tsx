@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
+import { TopupButton } from "@/modules/billing/BillingButtons";
+import { loadPricingServer } from "@/modules/billing/billing";
+import { money } from "@/modules/onboarding/pricing";
 import { readCredits } from "@/modules/credits/read";
 
 export const metadata: Metadata = { title: "Credits · Flowcam Studio" };
 
 export default async function CreditsPage() {
   const credits = await readCredits().catch(() => null);
+  const pricing = credits ? await loadPricingServer().catch(() => null) : null;
   return (
     <div className="flex min-h-screen flex-col">
       <TopBar>
@@ -25,6 +29,12 @@ export default async function CreditsPage() {
             <Panel className="p-6">
               <p className="text-sm text-muted-foreground">Available balance</p>
               <p className="text-4xl font-semibold tabular-nums" data-testid="balance">{credits.balance}</p>
+              {pricing && (
+                <div className="mt-4 flex items-center gap-3">
+                  <TopupButton label={`Top up: ${pricing.topupCredits} Credits for ${money(pricing.topupCents, pricing.currency)}`} />
+                  <span className="text-xs text-muted-foreground">Top-up Credits never expire.</span>
+                </div>
+              )}
               <ul className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
                 {Object.entries(credits.byBucket).map(([bucket, n]) => (
                   <li key={bucket} className="rounded-md border p-2">
