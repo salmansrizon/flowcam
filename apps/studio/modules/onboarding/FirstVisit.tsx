@@ -22,7 +22,7 @@ export function FirstVisit({ onPick }: { onPick: (p: Presentation) => void }) {
   return (
     <>
       {state === "card" && (
-        <aside aria-label="First Presentation" className="fixed bottom-20left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-xl border bg-background p-4 shadow-lg">
+        <aside aria-label="First Presentation" className="fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-xl border bg-background p-4 shadow-lg">
           <div>
             <p className="font-medium">Your first Presentation is ready</p>
             <p className="text-sm text-muted-foreground">Present it and see how Flowcam reveals each Step.</p>

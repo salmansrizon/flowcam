@@ -27,8 +27,9 @@ async function loadCloud(): Promise<Cloud | null> {
     const sb = supabaseBrowser();
     const uid = (await sb.auth.getSession()).data.session?.user.id;
     if (!uid) return null;
-    const { data: sub } = await sb.from("subscriptions").select("status,current_period_end").maybeSingle();
-    if (!sub || sub.status !== "active" || new Date(sub.current_period_end) <= new Date()) return null;
+    // The database's own Pro rule (is_pro), so the library and Sync cannot disagree.
+    const { data: pro } = await sb.rpc("is_pro");
+    if (pro !== true) return null;
     const { data, error } = await sb.from("presentations").select("id,version,data,updated_at").is("deleted_at", null);
     if (error) return null;
     return { sb, uid, rows: data.map((r) => ({ id: r.id, version: r.version, updatedAt: r.updated_at, data: r.data as Presentation })) };
