@@ -38,7 +38,8 @@ export function fillSilence(p: Presentation, ms = DEFAULT_SILENCE_MS): Presentat
 export function setNarration(board: Board, i: number, narration: Narration | null): Board {
   const s = board.steps[i];
   if (!s) return board;
-  const { narration: _old, ...rest } = s;
+  const rest = { ...s };
+  delete rest.narration;
   return { ...board, steps: board.steps.map((x, j) => (j === i ? ((narration ? { ...rest, narration } : rest) as typeof s) : x)) };
 }
 
