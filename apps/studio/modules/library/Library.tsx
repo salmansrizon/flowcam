@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BOARD_WIDTH, boardView, themeById, type Presentation } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 import { Copy, Download, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { GenerateFromTopic } from "../ai/ui/AiFeatures";
 import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ export default function Library() {
   const [error, setError] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<LocalEntry | null>(null);
+  const [topicOpen, setTopicOpen] = useState(false);
 
   const refresh = useCallback(
     () =>
@@ -139,6 +141,7 @@ export default function Library() {
                   {t.name}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={() => setTopicOpen(true)}>Generate from a topic…</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         }
@@ -205,6 +208,7 @@ export default function Library() {
           </section>
         )}
       </main>
+      <GenerateFromTopic open={topicOpen} onOpenChange={setTopicOpen} onPick={(p) => run(() => create(p))} />
       <Dialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <DialogContent>
           <DialogHeader>

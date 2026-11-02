@@ -24,6 +24,7 @@ import { firstVisitSample } from "../onboarding/sample";
 import { ProBadge } from "../onboarding/ProBadge";
 import { UpgradePanel } from "../onboarding/UpgradePanel";
 import { hasPro, usePlan } from "../onboarding/usePlan";
+import { GenerateImage, ScriptsAi } from "../ai/ui/AiFeatures";
 import { NarrationControls } from "../narration/NarrationControls";
 import { MakeNarrated } from "../narration/MakeNarrated";
 import { setNarration } from "../narration/timing";
@@ -162,6 +163,7 @@ export default function Editor() {
   const [imagesVersion, setImagesVersion] = useState(0);
   const [urlText, setUrlText] = useState("");
   const [urlOpen, setUrlOpen] = useState(false);
+  const [aiImageOpen, setAiImageOpen] = useState(false);
   const [boardsOpen, setBoardsOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -964,6 +966,7 @@ export default function Editor() {
                       <DropdownMenuContent side="top" align="end">
                         <DropdownMenuItem onSelect={() => uploadRef.current?.click()}>Upload image…</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => setUrlOpen(true)}>Image from URL…</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setAiImageOpen(true)}>Generate image…</DropdownMenuItem>
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger>Template</DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
@@ -1053,6 +1056,7 @@ export default function Editor() {
             <input ref={exportRef} type="file" hidden aria-label="Open Presentation JSON" accept=".json,application/json" onChange={(e) => { const f = e.target.files?.[0]; if (f) openJson(f); e.target.value = ""; }} />
             <input ref={uploadRef} type="file" hidden aria-label="Upload image" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); e.target.value = ""; }} />
             <input ref={importRef} type="file" hidden aria-label="Import .excalidraw" accept=".excalidraw,.json" onChange={(e) => { const f = e.target.files?.[0]; if (f) importExcalidraw(f); e.target.value = ""; }} />
+            <GenerateImage open={aiImageOpen} onOpenChange={setAiImageOpen} onImage={(b) => addImage(b)} />
             <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
               <DialogContent>
                 <DialogHeader><DialogTitle>Insert from a web address</DialogTitle></DialogHeader>
@@ -1207,6 +1211,12 @@ export default function Editor() {
                 </TabsContent>
 
                 <TabsContent value="script" className="flex flex-col gap-2 p-3">
+                  <ScriptsAi
+                    labels={board ? board.steps.map((_, i) => stepLabel(board, i)) : []}
+                    current={board ? board.steps.map((s) => s.script ?? "") : []}
+                    title={presentation?.title ?? ""}
+                    onApply={(texts) => update((b) => texts.reduce((acc, t, i) => (i < b.steps.length ? updateStep(acc, i, { script: t }) : acc), b))}
+                  />
                   <ScriptUpload labels={board ? board.steps.map((_, i) => stepLabel(board, i)) : []} onApply={(texts) => update((b) => texts.reduce((acc, t, i) => updateStep(acc, i, { script: t }), b))} />
                   {step && activeStep !== null ? (
                     <>
@@ -1219,7 +1229,7 @@ export default function Editor() {
                         value={step.script ?? ""}
                         onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }), { key: `script-${indexRef.current}-${activeStep}` })}
                       />
-                      <NarrationControls key={step.id} script={step.script ?? ""} narration={step.narration} onChange={(n) => update((b) => setNarration(b, activeStep, n))} />
+                      <NarrationControls key={step.id} stepId={step.id} script={step.script ?? ""} narration={step.narration} onChange={(n) => update((b) => setNarration(b, activeStep, n))} />
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">Pick a Step in the Steps tab to write its Script.</p>

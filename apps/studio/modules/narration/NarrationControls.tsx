@@ -5,6 +5,7 @@ import { MAX_NARRATION_MS, type Narration } from "@flowcam/domain";
 import { Mic, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GenerateVoiceover } from "../ai/ui/AiFeatures";
 import { readAsset, writeAsset } from "../presentation/assets";
 import { MAX_SILENCE_S, MIN_SILENCE_S } from "./timing";
 
@@ -18,7 +19,7 @@ async function measureMs(blob: Blob): Promise<number> {
  * The Script tab's Narration controls for one Step: record the voice (Script shown large, with a level meter),
  * play it back, re-record, delete, or set silence for a time. `onChange` should go through the editor's undo path.
  */
-export function NarrationControls({ script, narration, onChange }: { script: string; narration: Narration | undefined; onChange: (n: Narration | null) => void }) {
+export function NarrationControls({ script, stepId, narration, onChange }: { script: string; stepId: string; narration: Narration | undefined; onChange: (n: Narration | null) => void }) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -115,6 +116,7 @@ export function NarrationControls({ script, narration, onChange }: { script: str
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={start}><Mic /> {narration?.kind === "voice" ? "Re-record" : "Record narration"}</Button>
+        <GenerateVoiceover script={script} stepId={stepId} onNarration={onChange} />
         {narration && <Button size="sm" variant="outline" onClick={() => onChange(null)}><Trash2 /> Delete</Button>}
       </div>
 
