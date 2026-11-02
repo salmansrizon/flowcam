@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, deleteLeftoverTestUsers, deleteTestUser, grantPlan, signInWithCode, stubSendCode, type TestUser } from "./auth";
 
+// Creating test users needs the secret key, which CI does not have.
+test.skip(!process.env.SUPABASE_SECRET_KEY, "SKIPPED: SUPABASE_SECRET_KEY is not set, so test users cannot be created.");
+
 let user: TestUser;
 test.beforeEach(async () => {
   user = await createTestUser();

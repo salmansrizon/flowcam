@@ -11,7 +11,11 @@ const secret = process.env.SUPABASE_SECRET_KEY;
 if (!secret) console.warn("SKIPPED save_presentation tests: SUPABASE_SECRET_KEY is not set.");
 
 describe.skipIf(!secret || !url || !publishable)("save_presentation", () => {
-  const admin = createClient(url!, secret!, { auth: { persistSession: false } });
+  // Created in beforeAll: Vitest still runs a skipped describe's body, and CI has no Supabase env.
+  let admin: SupabaseClient;
+  beforeAll(() => {
+    admin = createClient(url!, secret!, { auth: { persistSession: false } });
+  });
   const created: string[] = [];
   const doc = (title: string) => ({ version: 1, title, boards: [] });
 

@@ -6,6 +6,11 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # The flowcam Supabase project's public URL and publishable key (they ship in the browser bundle anyway).
+    # Tests that need the secret key skip without it.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://mlvqqzpgmaqxpfvfalrj.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_f_1_rjhdfw0uZBZD-osTfQ_JQ1Z9Xdv
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,5 +20,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
+      - run: npm run build -w studio
+      - run: npm run build -w web
       - run: npm run test:unit
       - run: npm run test:integration
