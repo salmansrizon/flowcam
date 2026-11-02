@@ -165,6 +165,8 @@ describe("parsing stored data", () => {
     expect(parsePresentation(roundTrip(presentation))).toEqual(presentation);
     const styled = { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], fontOverride: "serif", roughnessOverride: 2 }, elements[1], { ...elements[2], flowMode: "neon", flowSpeed: 1.5 }] }] };
     expect(parsePresentation(roundTrip(styled))).toEqual(styled);
+    const narrated = { ...presentation, boards: [{ ...board, steps: board.steps.map((st, i) => ({ ...st, narration: i ? { kind: "silence", durationMs: 1500 } : { kind: "voice", assetId: "a".repeat(64), durationMs: 4200 } })) }] };
+    expect(parsePresentation(roundTrip(narrated))).toEqual(narrated);
     expect(parseClipLog(roundTrip(log([{ t: 1, type: "step", index: 1 }])))).toBeTruthy();
   });
 
@@ -177,6 +179,8 @@ describe("parsing stored data", () => {
     ["image without imageId", { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], type: "image" }], steps: [] }] }, ".imageId"],
     ["focus with an empty rect", { ...presentation, boards: [{ ...board, steps: [{ id: "f", kind: "focus", rect: { x: 0, y: 0, width: 0, height: 5 } }] }] }, ".rect"],
     ["unknown Layout", { ...presentation, boards: [{ ...board, steps: [{ ...board.steps[0], layout: "pip" }] }] }, ".layout"],
+    ["Narration without a duration", { ...presentation, boards: [{ ...board, steps: [{ ...board.steps[0], narration: { kind: "silence" } }] }] }, ".narration.durationMs"],
+    ["voice Narration without an asset", { ...presentation, boards: [{ ...board, steps: [{ ...board.steps[0], narration: { kind: "voice", durationMs: 1000 } }] }] }, ".narration.assetId"],
     ["unknown Flow mode", { ...presentation, boards: [{ ...board, elements: [{ ...elements[2], flowMode: "laser" }] }] }, ".flowMode"],
     ["Flow speed too high", { ...presentation, boards: [{ ...board, elements: [{ ...elements[2], flowSpeed: 9 }] }] }, ".flowSpeed"],
     ["unknown font override", { ...presentation, boards: [{ ...board, elements: [{ ...elements[0], fontOverride: "comic" }] }] }, ".fontOverride"],
