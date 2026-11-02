@@ -1,5 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// The account tests need the Supabase secret key on the Node side.
+try {
+  process.loadEnvFile("apps/studio/.env.local");
+} catch {
+  // Env may already be set.
+}
+
 // PORT lets two worktrees run integration tests at once.
 const port = Number(process.env.PORT ?? 3000);
 

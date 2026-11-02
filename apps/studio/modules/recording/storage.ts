@@ -1,6 +1,7 @@
 import { InvalidDataError, parseClipLog, type ClipLog, type Presentation } from "@flowcam/domain";
 import { fixturePresentation } from "./fixture";
-import { loadPresentation as loadSavedPresentation } from "../presentation/store";
+// The local copy only: this module also runs in the export worker, which must not load Sync (browser-only).
+import { readLocal } from "../presentation/local";
 import { openCrashSafeFile } from "./opfs-writer";
 
 // OPFS layout (S3 Authoring writes presentation.json; S5 export reads recordings/):
@@ -54,7 +55,7 @@ const clipDir = (recordingId: string, clipId: string) => ["recordings", recordin
 
 /** The Presentation to record: OPFS presentation.json, or the built-in fixture if there is none. */
 export async function loadPresentation(): Promise<Presentation> {
-  return (await loadSavedPresentation()) ?? fixturePresentation;
+  return (await readLocal()) ?? fixturePresentation;
 }
 
 export async function readRecording(recordingId: string): Promise<RecordingManifest> {
