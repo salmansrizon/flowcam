@@ -1,7 +1,7 @@
 import "server-only";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { planLabel } from "@/modules/account/plan";
-import { placeHold, releaseHold } from "@/modules/credits/server";
+import { supabaseAdmin } from "../../lib/supabase/admin";
+import { planLabel } from "../account/plan";
+import { placeHold, releaseHold } from "../credits/server";
 import { WORDS_PER_MINUTE, wordCount } from "./demo";
 import { AI_JOB_KINDS, AI_QUALITIES, type AiJobIO, type AiJobKind, type AiQuality } from "./types";
 

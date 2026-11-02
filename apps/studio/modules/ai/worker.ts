@@ -1,7 +1,7 @@
 import "server-only";
 import { parsePresentation } from "@flowcam/domain";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { chargeHold, releaseHold } from "@/modules/credits/server";
+import { supabaseAdmin } from "../../lib/supabase/admin";
+import { chargeHold, releaseHold } from "../credits/server";
 import { aiProvider } from "./provider";
 import type { AiJobIO, AiJobKind, AiProvider, AiQuality } from "./types";
 
