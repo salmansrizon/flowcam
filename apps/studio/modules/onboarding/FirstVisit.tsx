@@ -7,12 +7,14 @@ import { TEMPLATES } from "../authoring/templates";
 import { newPresentation } from "../presentation/store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { GenerateFromTopic } from "../ai/ui/AiFeatures";
 import { fromTemplate, getState, setState, subscribe } from "./sample";
 
 /** The first-visit "Try presenting" card and, once the visitor has moved on, the "Start from" choice. */
 export function FirstVisit({ onPick }: { onPick: (p: Presentation) => void }) {
   const state = useSyncExternalStore(subscribe, getState, () => null); // localStorage, so null during server render
   const [templates, setTemplates] = useState(false);
+  const [topicOpen, setTopicOpen] = useState(false);
   const to = setState;
   const pick = (p: Presentation) => {
     to("done");
@@ -33,7 +35,7 @@ export function FirstVisit({ onPick }: { onPick: (p: Presentation) => void }) {
           <Button variant="ghost" size="icon" aria-label="Dismiss" onClick={() => to("choose")}><X /></Button>
         </aside>
       )}
-      <Dialog open={state === "choose"} onOpenChange={(o) => !o && to("done")}>
+      <Dialog open={state === "choose" && !topicOpen}onOpenChange={(o) => !o && to("done")}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Start from</DialogTitle>
@@ -48,12 +50,13 @@ export function FirstVisit({ onPick }: { onPick: (p: Presentation) => void }) {
           ) : (
             <div className="grid gap-2">
               <Button variant="outline" onClick={() => setTemplates(true)}>Template</Button>
-              <Button variant="outline" disabled>Generate from a topic <span className="text-xs text-muted-foreground">Coming soon: needs AI Credits</span></Button>
+              <Button variant="outline" onClick={() => setTopicOpen(true)}>Generate from a topic <span className="text-xs text-muted-foreground">Uses AI Credits</span></Button>
               <Button variant="outline" onClick={() => pick(newPresentation())}>Blank</Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
+      <GenerateFromTopic open={topicOpen} onOpenChange={setTopicOpen} onPick={pick} />
     </>
   );
 }

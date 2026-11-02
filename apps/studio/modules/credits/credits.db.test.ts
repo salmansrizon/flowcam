@@ -43,8 +43,7 @@ describe.skipIf(!key || !url)("credits against the dev database (skipped: SUPABA
   };
 
   afterAll(async () => {
-    // Users with ledger lines cannot be deleted: the append-only trigger also blocks the ON DELETE CASCADE (B0 issue).
-    // ponytail: such throwaway e2e+ users leak until the trigger lets cascades through.
+    // Ledger lines go with the deleted user (migration 20261027000400).
     for (const id of created) await db.auth.admin.deleteUser(id);
   });
 
