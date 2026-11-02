@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AiError, clearPending, formatPrice, loadPending, savePending, startJob, useAiPrices, waitForJob, type JobStatus } from "../client";
 import type { AiJobIO, AiJobKind, AiQuality } from "../types";
 
-type Phase = { t: "idle" } | { t: "running"; status: JobStatus | "starting" } | { t: "error"; err: Error } | { t: "preview"; result: unknown };
+type Phase = { t: "idle" } | { t: "running"; status: JobStatus | "starting" } | { t: "error"; err: Error } | { t: "preview"; result: unknown; ctx?: string };
 
 const STATUS_LABEL: Record<JobStatus | "starting", string> = { starting: "queued", queued: "queued", running: "generating", succeeded: "done", failed: "failed" };
 
@@ -72,12 +72,14 @@ export function AiJobDialog<K extends AiJobKind>(p: Props<K>) {
     try {
       const result = await waitForJob<K>(id, (s) => setPhase({ t: "running", status: s }));
       clearPending(p.feature);
-      if (latest.current.preview) return setPhase({ t: "preview", result });
+      if (latest.current.preview) return setPhase({ t: "preview", result, ctx });
       await latest.current.onResult(result, ctx);
       setPhase({ t: "idle" });
       latest.current.onOpenChange(false);
     } catch (e) {
-      clearPending(p.feature);
+      // A client-side timeout (504) means the Job is still running on the server and will still be charged:
+      // keep it pending so reopening or reloading picks up the result.
+      if (!(e instanceof AiError && e.status === 504)) clearPending(p.feature);
       setPhase({ t: "error", err: e instanceof Error ? e : new Error(String(e)) });
     }
   }
@@ -148,9 +150,13 @@ export function AiJobDialog<K extends AiJobKind>(p: Props<K>) {
               <Button variant="outline" onClick={() => setPhase({ t: "idle" })}>Back</Button>
               <Button
                 onClick={async () => {
-                  await p.onResult(phase.result as AiJobIO[K]["result"]);
-                  setPhase({ t: "idle" });
-                  p.onOpenChange(false);
+                  try {
+                    await p.onResult(phase.result as AiJobIO[K]["result"], phase.ctx);
+                    setPhase({ t: "idle" });
+                    p.onOpenChange(false);
+                  } catch (e) {
+                    setPhase({ t: "error", err: e instanceof Error ? e : new Error(String(e)) });
+                  }
                 }}
               >
                 {p.applyLabel ?? "Apply"}
