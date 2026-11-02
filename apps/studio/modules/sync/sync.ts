@@ -99,7 +99,7 @@ async function uploadImages({ sb, uid }: Ctx, p: Presentation) {
   }
 }
 
-async function downloadImages({ sb, uid }: Ctx, p: Presentation) {
+export async function downloadImages({ sb, uid }: Ctx, p: Presentation) {
   for (const id of imageIdsOf(p)) {
     try {
       await readAsset(id);
