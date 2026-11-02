@@ -30,5 +30,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|wasm|onnx|js|mjs)$).*)"],
+  // api/share is the MP4 upload: the proxy would buffer (and cap at 10 MB) its body, and the route reads its own session.
+  matcher: ["/((?!api/share$|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|wasm|onnx|js|mjs)$).*)"],
 };

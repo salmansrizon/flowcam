@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, Link2, LogOut, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -64,6 +64,11 @@ export function AccountMenu() {
           <CreditBalance />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/shares">
+            <Link2 /> My Share Links
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void supabaseBrowser().auth.signOut()}>
           <LogOut /> Sign out
         </DropdownMenuItem>
