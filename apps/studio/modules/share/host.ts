@@ -5,7 +5,7 @@ import { supabaseAdmin } from "../../lib/supabase/admin";
 export interface VideoHost {
   name: "demo" | "mux";
   /** Stores the MP4; returns the columns to save on the share_links row. */
-  upload(ownerId: string, id: string, video: Uint8Array): Promise<{ video_path?: string; mux_asset_id?: string; mux_playback_id?: string }>;
+  upload(ownerId: string, id: string, video: Blob): Promise<{ video_path?: string; mux_asset_id?: string; mux_playback_id?: string }>;
   /** A URL the browser can play; only handed out after any password check. */
   playbackUrl(link: { video_path: string | null; mux_playback_id: string | null }): Promise<string>;
   remove(link: { video_path: string | null; mux_asset_id: string | null }): Promise<void>;
@@ -54,7 +54,7 @@ const muxHost: VideoHost = {
       method: "POST",
       body: JSON.stringify({ new_asset_settings: { playback_policy: ["public"], video_quality: "basic" }, cors_origin: "*" }),
     });
-    const put = await fetch(up.url, { method: "PUT", body: video as BodyInit, headers: { "content-type": "video/mp4" } });
+    const put = await fetch(up.url, { method: "PUT", body: video, headers: { "content-type": "video/mp4" } });
     if (!put.ok) throw new Error(`Mux upload failed: HTTP ${put.status}`);
     // ponytail: poll up to ~30 s for the asset; a Mux webhook is the upgrade for long videos.
     for (let i = 0; i < 30; i++) {

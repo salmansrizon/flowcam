@@ -7,7 +7,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/share/[id]/unlo
   const link = await getShare((await ctx.params).id);
   if (!link || !(await isPlayable(link))) return Response.json({ error: "Not found." }, { status: 404 });
   const { password } = (await req.json().catch(() => ({}))) as { password?: string };
-  if (link.password_hash && !(typeof password === "string" && verifyPassword(password, link.password_hash))) {
+  if (link.password_hash && !(typeof password === "string" && (await verifyPassword(password, link.password_hash)))) {
     return Response.json({ error: "Wrong password." }, { status: 403 });
   }
   return Response.json({ url: await hostFor(link).playbackUrl(link), presentation: link.presentation });

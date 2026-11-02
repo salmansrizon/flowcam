@@ -56,9 +56,13 @@ async function rpc(fn: string, args: Record<string, unknown>) {
   if (error) throw new Error(error.message);
 }
 
-async function update(uid: string, fields: Record<string, unknown>) {
-  const { error } = await supabaseAdmin().from("subscriptions").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", uid);
+/** Changes the user's row only while it still holds the event's subscription, so an old subscription's events cannot touch a newer one. */
+async function update(uid: string, subId: string | null, fields: Record<string, unknown>): Promise<boolean> {
+  let q = supabaseAdmin().from("subscriptions").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", uid);
+  if (subId) q = q.eq("provider_subscription_id", subId);
+  const { data, error } = await q.select("user_id");
   if (error) throw new Error(error.message);
+  return data.length > 0;
 }
 
 /** Returns false when the event needs no change (not an error). */
@@ -73,6 +77,7 @@ async function apply(ev: BillingEvent, uid: string): Promise<boolean> {
       const interval = ev.interval ?? "month";
       const end = trial ? new Date(Date.now() + pricing.trialDays * 86_400_000) : (ev.renewsAt ?? new Date(Date.now() + 31 * 86_400_000));
       const { data: before } = await db.from("subscriptions").select("paid_once, founding").eq("user_id", uid).maybeSingle();
+      if (trial && before) return false; // The Trial is only for accounts that never subscribed.
       const { error } = await db.from("subscriptions").upsert({
         user_id: uid,
         plan: trial ? "trial" : "pro",
@@ -99,20 +104,17 @@ async function apply(ev: BillingEvent, uid: string): Promise<boolean> {
       if (ev.status !== "active" || !ev.renewsAt) return false;
       const { data: sub } = await db.from("subscriptions").select("billing_interval").eq("user_id", uid).maybeSingle();
       const interval = ev.interval ?? (sub?.billing_interval as "month" | "year" | null) ?? "month";
-      await update(uid, { plan: "pro", status: "active", current_period_end: ev.renewsAt.toISOString(), cancel_at_period_end: false, paid_once: true, billing_interval: interval });
+      if (!(await update(uid, ev.subscriptionId, { plan: "pro", status: "active", current_period_end: ev.renewsAt.toISOString(), cancel_at_period_end: false, paid_once: true, billing_interval: interval }))) return false;
       await rpc("grant_monthly_credits", { uid, period_start: periodStart(ev.renewsAt, interval).toISOString() });
       return true;
     }
     case "subscription_payment_success":
-      await update(uid, { paid_once: true });
-      return true;
+      return update(uid, ev.subscriptionId, { paid_once: true });
     case "subscription_cancelled":
       // Stays Pro until the period ends (ADR 0005); the period end only moves if the provider says when access ends.
-      await update(uid, { cancel_at_period_end: true, ...(ev.endsAt ? { current_period_end: ev.endsAt.toISOString() } : {}) });
-      return true;
+      return update(uid, ev.subscriptionId, { cancel_at_period_end: true, ...(ev.endsAt ? { current_period_end: ev.endsAt.toISOString() } : {}) });
     case "subscription_expired":
-      await update(uid, { status: "expired" });
-      return true;
+      return update(uid, ev.subscriptionId, { status: "expired" });
     case "order_created": {
       if (ev.kind !== "topup" || ev.status !== "paid" || !ev.orderId) return false;
       const pricing = await loadPricingServer();

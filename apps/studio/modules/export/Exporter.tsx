@@ -102,7 +102,7 @@ export default function Exporter({ recordingId, standalone = false }: { recordin
           <label htmlFor="export-resolution" className="text-sm font-medium">
             Resolution
           </label>
-          <NativeSelect id="export-resolution" value={resolution} onChange={(e) => (e.target.value === "4k" && !pro ? setUpgrade(true) : setResolution(e.target.value as typeof resolution))} aria-label="Resolution">
+          <NativeSelect id="export-resolution" value={resolution} onChange={(e) => (e.target.value === "4k" && !pro ? setUpgrade(true) : (setResolution(e.target.value as typeof resolution), setVideo(null)))} aria-label="Resolution">
             <option value="1080p">1080p</option>
             {/* 4K is a Pro feature (CONTEXT.md: Plan); for Free users choosing it opens the upgrade panel. */}
             <option value="4k">{pro ? "4K" : "4K (Pro)"}</option>

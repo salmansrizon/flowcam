@@ -54,7 +54,8 @@ describe.skipIf(!key || !url)("Billing webhooks against the dev database (skippe
   const sub = async (uid: string) => (await db.from("subscriptions").select("*").eq("user_id", uid).single()).data!;
   // is_pro() reads auth.uid(), so check the same rule on the row.
   const isPro = async (uid: string) => planLabel(await sub(uid)) !== "Free";
-  const pay = (uid: string, kind: "trial" | "pro" | "topup", interval: "month" | "year" = "month") => w.deliverDemoEvent(b.demoPaymentEvent({ uid, kind, interval, exp: 0 }));
+  let session = 0; // Each pay is its own checkout session (event ids are stable per session).
+  const pay = (uid: string, kind: "trial" | "pro" | "topup", interval: "month" | "year" = "month") => w.deliverDemoEvent(b.demoPaymentEvent({ uid, kind, interval, exp: Date.now() + ++session }));
   const pricing = async () => (await b.loadPricingServer())!;
 
   it("rejects a bad signature with 401 and records nothing", async () => {
@@ -118,6 +119,28 @@ describe.skipIf(!key || !url)("Billing webhooks against the dev database (skippe
     await w.deliverDemoEvent(b.demoEvent("subscription_expired", uid, { dataId: subId, attributes: { status: "expired" } }));
     expect(await sub(uid)).toMatchObject({ status: "expired", paid_once: true });
     expect(await isPro(uid)).toBe(false);
+  });
+
+  it("replaying one checkout session pays once", async () => {
+    const uid = await user();
+    const before = await balance(uid);
+    const s = { uid, kind: "topup" as const, exp: Date.now() };
+    await w.deliverDemoEvent(b.demoPaymentEvent(s));
+    expect((await w.deliverDemoEvent(b.demoPaymentEvent(s))).body.duplicate).toBe(true);
+    expect(await balance(uid)).toBe(before + (await pricing()).topupCredits);
+  });
+
+  it("an older subscription's events never change the current one", async () => {
+    const uid = await user();
+    await pay(uid, "trial"); // subscription demo_<uid>
+    const renews = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    await w.deliverDemoEvent(b.demoEvent("subscription_created", uid, { kind: "pro", interval: "month", dataId: `new_${uid}`, attributes: { status: "active", renews_at: renews } }));
+    const r = await w.deliverDemoEvent(b.demoEvent("subscription_expired", uid, { dataId: `demo_${uid}`, attributes: { status: "expired" } }));
+    expect(r.body.ignored).toBe(true);
+    expect(await sub(uid)).toMatchObject({ plan: "pro", status: "active", provider_subscription_id: `new_${uid}` });
+    // A second Trial never replaces a subscription.
+    await pay(uid, "trial");
+    expect((await sub(uid)).plan).toBe("pro");
   });
 
   it("records an unknown event and answers 200", async () => {

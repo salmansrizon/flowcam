@@ -17,8 +17,10 @@ async function owned(ctx: RouteContext<"/api/share/[id]">) {
 export async function PATCH(req: Request, ctx: RouteContext<"/api/share/[id]">) {
   const r = await owned(ctx);
   if (r.error) return r.error;
-  const { password } = (await req.json().catch(() => ({}))) as { password?: string | null };
-  await supabaseAdmin().from("share_links").update({ password_hash: password ? hashPassword(password) : null }).eq("id", r.link.id);
+  const { password } = (await req.json().catch(() => ({}))) as { password?: unknown };
+  if (password !== undefined && password !== null && typeof password !== "string") return Response.json({ error: "password must be a string or null." }, { status: 400 });
+  const { error } = await supabaseAdmin().from("share_links").update({ password_hash: password ? await hashPassword(password) : null }).eq("id", r.link.id);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true });
 }
 

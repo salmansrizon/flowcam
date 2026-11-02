@@ -125,10 +125,12 @@ export function demoEvent(name: string, uid: string, opts: { kind?: string; inte
 
 /** The event a demo payment produces: the subscription (Trial or Pro) or the Top-up order. */
 export function demoPaymentEvent(s: DemoSession) {
-  if (s.kind === "topup") return demoEvent("order_created", s.uid, { kind: "topup", dataId: `demo_order_${crypto.randomUUID()}`, attributes: { status: "paid" } });
+  // Stable per checkout session (its expiry), so paying twice or replaying the request is a duplicate event.
+  const at = new Date(s.exp).toISOString();
+  if (s.kind === "topup") return demoEvent("order_created", s.uid, { kind: "topup", dataId: `demo_order_${s.uid}_${s.exp}`, attributes: { status: "paid", updated_at: at } });
   const interval = s.interval ?? "month";
   const renews = new Date();
   if (interval === "year") renews.setUTCFullYear(renews.getUTCFullYear() + 1);
   else renews.setUTCMonth(renews.getUTCMonth() + 1);
-  return demoEvent("subscription_created", s.uid, { kind: s.kind, interval, attributes: { status: s.kind === "trial" ? "on_trial" : "active", renews_at: renews.toISOString() } });
+  return demoEvent("subscription_created", s.uid, { kind: s.kind, interval, attributes: { status: s.kind === "trial" ? "on_trial" : "active", renews_at: renews.toISOString(), updated_at: at } });
 }

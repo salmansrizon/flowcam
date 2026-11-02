@@ -27,12 +27,13 @@ export async function POST(req: Request) {
 
   const db = supabaseAdmin();
   const id = newShareId();
-  const { error } = await db.from("share_links").insert({ id, owner_id: user.id, title, presentation, password_hash: password ? hashPassword(password) : null });
+  const { error } = await db.from("share_links").insert({ id, owner_id: user.id, title, presentation, password_hash: password ? await hashPassword(password) : null });
   if (error) return Response.json({ error: error.message }, { status: 500 });
   try {
     const host = videoHost();
-    const stored = await host.upload(user.id, id, new Uint8Array(await video.arrayBuffer()));
-    await db.from("share_links").update({ ...stored, status: "ready" }).eq("id", id);
+    const stored = await host.upload(user.id, id, video);
+    const done = await db.from("share_links").update({ ...stored, status: "ready" }).eq("id", id);
+    if (done.error) throw new Error(done.error.message);
   } catch (e) {
     await db.from("share_links").update({ status: "failed" }).eq("id", id);
     return Response.json({ error: (e as Error).message }, { status: 500 });

@@ -1,15 +1,18 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 
-/** "salt:hash" (hex), scrypt with a random salt. */
-export function hashPassword(password: string): string {
+const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+
+/** "salt:hash" (hex), scrypt with a random salt. Async so a guess never blocks other requests. */
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
-  return `${salt.toString("hex")}:${scryptSync(password, salt, 32).toString("hex")}`;
+  return `${salt.toString("hex")}:${(await scryptAsync(password, salt, 32)).toString("hex")}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return false;
   const expected = Buffer.from(hash, "hex");
-  const actual = scryptSync(password, Buffer.from(salt, "hex"), expected.length);
+  const actual = await scryptAsync(password, Buffer.from(salt, "hex"), expected.length);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
