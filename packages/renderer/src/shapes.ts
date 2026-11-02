@@ -1,16 +1,12 @@
 // Ported from Excaliflow (Apache-2.0), see ../NOTICE: advanced_llm_apps/excaliflow/index.html @ 40b16b6.
 // Hand-drawn shape paths, hachure fill and font helpers.
-import type { Canvas2D, Element, Theme } from "@flowcam/domain";
+import { FONT_STACKS, type Canvas2D, type Element, type Theme } from "@flowcam/domain";
 
 /**
  * Fonts the caller must load before rendering (the renderer only names them):
  * Excalifont (or Virgil) for "hand", Assistant (or Nunito) for "sans", Cascadia for "code".
  */
-const FONT_MAP = {
-  hand: "'Excalifont', 'Virgil', 'Patrick Hand', 'Architects Daughter', 'Caveat', cursive",
-  sans: "'Assistant', 'Nunito', 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  code: "'Cascadia', 'Geist Mono', monospace",
-};
+const FONT_MAP = FONT_STACKS;
 /** Excalidraw's unitless line-height metric. */
 const LINE_HEIGHT = 1.25;
 
@@ -19,6 +15,7 @@ function normalizeFontFamily(family: string): keyof typeof FONT_MAP {
   if (!f || f === "hand" || /excalifont|virgil|patrick|caveat/.test(f)) return "hand";
   if (f === "sans" || f === "normal" || /assistant|nunito|inter/.test(f) || (f.includes("geist") && !f.includes("mono"))) return "sans";
   if (f === "code" || f === "mono" || /cascadia|mono/.test(f)) return "code";
+  if (f === "serif" || /georgia|times/.test(f)) return "serif";
   return "hand";
 }
 

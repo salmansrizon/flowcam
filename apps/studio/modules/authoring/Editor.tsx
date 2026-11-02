@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BOARD_HEIGHT, BOARD_WIDTH, LAYOUTS, THEMES, TRANSITIONS, boardView, boundsOf, themeById, type Board, type Element, type ElementType, type Layout, type Presentation, type Rect, type Transition } from "@flowcam/domain";
+import { BOARD_HEIGHT, BOARD_WIDTH, FONT_IDS, FONT_LABELS, FONT_STACKS, LAYOUTS, MAX_FLOW_SPEED, MIN_FLOW_SPEED, THEMES, TRANSITIONS, boardView, boundsOf, parsePresentation, themeById, type Board, type Element, type ElementType, type FlowMode, type FontId, type Layout, type Presentation, type Rect, type Transition } from "@flowcam/domain";
 import { boardRenderer } from "@flowcam/renderer";
 import { addElement, addFlowStep, createElement, deleteElement, deleteStep, hitTest, moveElement, moveStep } from "./board-edits";
 import { addBoard, deleteBoard, insertBoard, isEmptyBoard, moveBoard, selectionAfterMove, setTransition, updateBoard } from "./deck-edits";
 import { addFocusStep, addHighlightStep, addMorphStep, duplicateElements, mergeReveals, setElementText, updateStep } from "./step-edits";
 import { fromExcalidraw, excalidrawFiles } from "./excalidraw";
+import { emptyHistory, record, redo as redoHistory, undo as undoHistory, type History } from "./history";
+import { flipArrows, restyleElements, toggleArrowFlow } from "./style-edits";
 import { TEMPLATES, templateBoard } from "./templates";
 import { dataUrlToBlob, decodeImages, fetchImageAsset, readAsset, writeAsset } from "../presentation/assets";
 import { loadPresentation, newPresentation, savePresentation } from "../presentation/store";
-import { ArrowDown, ArrowUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, Copy, Download, Lock, LockOpen, Minus, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Redo2, Trash2, Type, Undo2, X, Zap, ZapOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TopBar } from "@/components/studio/TopBar";
 import { Panel } from "@/components/studio/Panel";
+import { FontPicker } from "@/components/studio/FontPicker";
 import { Badge } from "@/components/ui/badge";
 import SyncStatus from "../sync/SyncStatus";
 import { Button } from "@/components/ui/button";
@@ -37,16 +40,23 @@ const TOOLS: { tool: Tool; label: string; key: string; hint: string; icon: React
 ];
 
 const selectCls = "h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+// Excaliflow's strokeWidthRow (Thin 1.5, Bold 2.2, Heavy 3.6) and roughnessRow (Clean 0, Artist 0.85, Cartoon 1.75), renamed per Flowcam's UI.
+const WIDTHS: [string, string][] = [["1.5", "Thin"], ["2.2", "Medium"], ["3.6", "Bold"]];
+const ROUGHNESSES: [string, string][] = [["theme", "Theme default"], ["0", "Architect"], ["0.85", "Artist"], ["1.75", "Cartoonist"]];
+const CURVES: [string, string][] = [["curved", "Curved"], ["straight", "Straight"]];
+const FLOW_LABELS: [FlowMode, string][] = [["comets", "Comets"], ["pulse", "Pulse"], ["neon", "Neon"], ["dashed", "Dashed"]];
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 8;
 const FILLS: [string, string][] = [["hachure", "Sketch"], ["solid", "Solid"], ["none", "None"]];
 const STROKES: [string, string][] = [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]];
 
-function IconButton({ label, children, ...props }: React.ComponentProps<typeof Button> & { label: string }) {
+function IconButton({ label, tip, children, ...props }: React.ComponentProps<typeof Button> & { label: string; tip?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={label} {...props}>{children}</Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>{tip ?? label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -62,9 +72,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** Excaliflow's .segmented-row / .seg-btn. */
-function Segmented({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void }) {
+function Segmented({ label, value, options, onChange, wrap }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void; wrap?: boolean }) {
   return (
-    <div role="group" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg border bg-muted p-0.5">
+    <div role="group" aria-label={label} className={cn("grid gap-0.5 rounded-lg border bg-muted p-0.5", wrap ? "grid-cols-2" : "auto-cols-fr grid-flow-col")}>
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -94,10 +104,11 @@ function BoardThumb({ board, theme, images, version }: { board: Board; theme: Re
 const KEYS: Record<string, Tool> = { "1": "select", "2": "rectangle", "3": "diamond", "4": "ellipse", "5": "arrow", "7": "freedraw", "8": "text", "9": "sticky", ...Object.fromEntries(TOOLS.map((t) => [t.key, t.tool])) };
 
 type Drag =
-  | { kind: "move"; last: [number, number] }
+  | { kind: "move"; last: [number, number]; moved?: boolean }
   | { kind: "draw"; el: Element; start: [number, number] }
   | { kind: "rect"; start: [number, number]; rect: Rect }
-  | { kind: "morph"; last: [number, number] };
+  | { kind: "morph"; last: [number, number] }
+  | { kind: "pan"; last: [number, number] };
 type Editing = { id: string; draft?: Element };
 
 const TEXTUAL = new Set<ElementType>(["rectangle", "ellipse", "diamond", "text", "sticky"]);
@@ -149,6 +160,25 @@ export default function Editor() {
   const importRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toolLock, setToolLock] = useState(false);
+  // Editor view only (zoom is relative to the fitted Board, so 1 = Fit); the Board data and its 1920x1080 frame never change.
+  const [view, setView] = useState({ z: 1, x: 0, y: 0 });
+  const [fitW, setFitW] = useState(BOARD_WIDTH / 2);
+  const [spaceDown, setSpaceDown] = useState(false);
+  const [, setLayoutTick] = useState(0);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const spaceRef = useRef(false);
+  const toolLockRef = useRef(false);
+  toolLockRef.current = toolLock;
+  // Undo history keeps whole Presentations; `presRef` is the latest one so several edits in one event each see the previous.
+  const presRef = useRef<Presentation | null>(null);
+  const history = useRef<History<Presentation>>(emptyHistory());
+  const lastKey = useRef<string | undefined>(undefined);
+  const [, setHistoryVersion] = useState(0);
+  const exportRef = useRef<HTMLInputElement>(null);
   // Pointer events can arrive faster than React re-renders, so handlers read the live drag from a ref.
   const dragRef = useRef<Drag | null>(null);
   const setDrag = (d: Drag | null) => {
@@ -170,16 +200,54 @@ export default function Editor() {
 
   useEffect(() => {
     loadPresentation()
-      .then((p) => setPresentation((cur) => cur ?? p ?? newPresentation())) // never clobber edits made while a slower load (Sync pull) finished
+      .then((p) => {
+        if (presRef.current) return; // never clobber edits made while a slower load (Sync pull) finished
+        presRef.current = p ?? newPresentation();
+        setPresentation(presRef.current);
+      })
       .catch((e) => setError(`Could not load your Presentation: ${e.message}`));
   }, []);
 
-  function update(edit: (b: Board) => Board) {
-    setPresentation((p) => (p ? updateBoard(p, indexRef.current, edit) : p));
+  type EditOpts = { record?: boolean; key?: string };
+  /** Every edit goes through here: it snapshots the Presentation for Undo (edits with the same `key` in a row, like typing, share one snapshot). */
+  function apply(edit: (p: Presentation) => Presentation, opts: EditOpts = {}) {
+    const cur = presRef.current;
+    if (!cur) return;
+    const next = edit(cur);
+    if (next === cur) return;
+    if (opts.record !== false) {
+      if (!opts.key || opts.key !== lastKey.current) history.current = record(history.current, cur);
+      lastKey.current = opts.key;
+    }
+    presRef.current = next;
+    setPresentation(next);
+    setHistoryVersion((v) => v + 1);
   }
-  function updateDeck(edit: (p: Presentation) => Presentation) {
-    setPresentation((p) => (p ? edit(p) : p));
+  function update(edit: (b: Board) => Board, opts?: EditOpts) {
+    apply((p) => updateBoard(p, indexRef.current, edit), opts);
   }
+  function updateDeck(edit: (p: Presentation) => Presentation, opts?: EditOpts) {
+    apply(edit, opts);
+  }
+  function stepHistory(dir: "undo" | "redo") {
+    const cur = presRef.current;
+    if (!cur) return;
+    const r = (dir === "undo" ? undoHistory : redoHistory)(history.current, cur);
+    if (!r) return;
+    history.current = r.history;
+    lastKey.current = undefined;
+    presRef.current = r.value;
+    setPresentation(r.value); // the save effect persists it like any other change
+    setHistoryVersion((v) => v + 1);
+    setBoardIndex((i) => Math.min(i, r.value.boards.length - 1));
+    setSelected([]);
+    setActiveStep(null);
+    setEditing(null);
+    setMorphTo(null);
+    setDrag(null);
+  }
+  const canUndo = history.current.past.length > 0;
+  const canRedo = history.current.future.length > 0;
   function reorderBoard(from: number, to: number) {
     const length = presentation?.boards.length ?? 0;
     updateDeck((p) => moveBoard(p, from, to));
@@ -292,9 +360,16 @@ export default function Editor() {
     const t = TEMPLATES.find((x) => x.id === id);
     if (!t || !presentation) return;
     const r = insertBoard(presentation, boardIndex, templateBoard(t));
-    setPresentation(r.presentation);
+    updateDeck(() => r.presentation);
     goto(r.index);
   }
+
+  // A status message clears itself; errors stay until dismissed.
+  useEffect(() => {
+    if (!status) return;
+    const t = setTimeout(() => setStatus(null), 6000);
+    return () => clearTimeout(t);
+  }, [status]);
 
   function commitEdit(text: string) {
     const ed = editingRef.current;
@@ -306,6 +381,7 @@ export default function Editor() {
       if (text.trim()) {
         update((b) => setElementText(addElement(b, draft), draft.id, text, measureWidth));
         setSelected([draft.id]);
+        if (!toolLockRef.current) setTool("select");
       }
     } else {
       update((b) => setElementText(b, ed.id, text, measureWidth));
@@ -324,13 +400,143 @@ export default function Editor() {
     setSelected(r.ids);
   }
 
+  function deleteSelected() {
+    update((b) => selected.reduce(deleteElement, b));
+    setSelected([]);
+  }
+
+  // ---- Export menu (Excaliflow's exportDropdown: btnSavePng, btnCopyPng, btnSaveJson, btnLoadJson)
+  function download(blob: Blob, name: string) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const fileName = (ext: string) => `${(presentation?.title || "Presentation").replace(/[^\w .-]+/g, "").trim() || "Presentation"}.${ext}`;
+  /** The current Board with every Element shown and no editor overlays. */
+  function boardPng(): Promise<Blob> {
+    const c = document.createElement("canvas");
+    c.width = BOARD_WIDTH;
+    c.height = BOARD_HEIGHT;
+    const v = { ...boardView(board!, []), revealedAt: new Map(board!.elements.map((e) => [e.id, -Infinity])) };
+    boardRenderer.render(c.getContext("2d")!, board!, v, 0, { theme, images: images.current });
+    return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("The browser could not make an image"))), "image/png"));
+  }
+  async function savePng() {
+    try {
+      download(await boardPng(), fileName("png"));
+      setStatus("Saved the Board as a PNG.");
+    } catch (e) {
+      setError(`Could not save the PNG: ${(e as Error).message}`);
+    }
+  }
+  async function copyPng() {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": boardPng() })]);
+      setStatus("Copied the Board as a PNG.");
+    } catch (e) {
+      setError(`Could not copy the PNG: ${(e as Error).message}`);
+    }
+  }
+  function saveJson() {
+    if (!presentation) return;
+    download(new Blob([JSON.stringify(presentation, null, 2)], { type: "application/json" }), fileName("flowcam.json"));
+    setStatus("Saved the Presentation as JSON. Images are not embedded in the file.");
+  }
+  async function openJson(file: File) {
+    try {
+      const opened = parsePresentation(JSON.parse(await file.text()));
+      updateDeck(() => opened); // undoable like any other edit
+      goto(0);
+      setStatus(`Opened “${opened.title}”. Images are not embedded in the file, so any not on this device show empty.`);
+    } catch (e) {
+      setError(`Could not open that file: ${(e as Error).message}`);
+    }
+  }
+
+  // ---- Zoom and pan of the editor view
+  function zoomAt(cx: number, cy: number, factor: number) {
+    const v = viewRef.current;
+    const rect = stageRef.current!.getBoundingClientRect();
+    const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.z * factor));
+    const k = z / v.z;
+    // The point under (cx, cy) stays put: the stage scales from its top-left corner at (rect.left, rect.top).
+    const next = { z, x: v.x + (1 - k) * (cx - rect.left), y: v.y + (1 - k) * (cy - rect.top) };
+    viewRef.current = next;
+    setView(next);
+  }
+  function zoomCentre(factor: number) {
+    const r = viewportRef.current!.getBoundingClientRect();
+    zoomAt(r.left + r.width / 2, r.top + r.height / 2, factor);
+  }
+  const fit = () => setView({ z: 1, x: 0, y: 0 });
+  const actualSize = () => zoomCentre(BOARD_WIDTH / fitW / viewRef.current.z);
+
+  useEffect(() => {
+    const vp = viewportRef.current!;
+    const canvas = canvasRef.current!;
+    const measure = () => {
+      setFitW(canvas.offsetWidth);
+      setLayoutTick((t) => t + 1);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(canvas);
+    // Cmd/Ctrl + wheel (and a trackpad pinch, which arrives as ctrl + wheel) zooms around the cursor; a plain wheel pans.
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+      else setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+    };
+    // Two-finger touch pinch.
+    let pinch: { d: number; cx: number; cy: number } | null = null;
+    const read = (t: TouchList) => ({ d: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), cx: (t[0].clientX + t[1].clientX) / 2, cy: (t[0].clientY + t[1].clientY) / 2 });
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      pinch = read(e.touches);
+      dragRef.current = null; // the first finger had started drawing
+      setDragState(null);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinch) return;
+      e.preventDefault();
+      const now = read(e.touches);
+      zoomAt(now.cx, now.cy, now.d / (pinch.d || 1));
+      setView((v) => ({ ...v, x: v.x + now.cx - pinch!.cx, y: v.y + now.cy - pinch!.cy }));
+      pinch = now;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    vp.addEventListener("wheel", onWheel, { passive: false });
+    vp.addEventListener("touchstart", onTouchStart, { passive: true });
+    vp.addEventListener("touchmove", onTouchMove, { passive: false });
+    vp.addEventListener("touchend", onTouchEnd);
+    return () => {
+      ro.disconnect();
+      vp.removeEventListener("wheel", onWheel);
+      vp.removeEventListener("touchstart", onTouchStart);
+      vp.removeEventListener("touchmove", onTouchMove);
+      vp.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (isField(e.target) || !board) return;
       const meta = e.metaKey || e.ctrlKey;
-      if ((e.key === "Delete" || e.key === "Backspace") && selected.length) {
-        update((b) => selected.reduce(deleteElement, b));
-        setSelected([]);
+      if (e.key === " " && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        spaceRef.current = true;
+        setSpaceDown(true);
+      } else if (meta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        stepHistory(e.shiftKey ? "redo" : "undo");
+      } else if (meta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        stepHistory("redo");
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selected.length) {
+        deleteSelected();
       } else if (meta && e.key.toLowerCase() === "d") {
         e.preventDefault();
         duplicate();
@@ -340,6 +546,8 @@ export default function Editor() {
       } else if (meta && e.key.toLowerCase() === "c") {
         clipboard.current = JSON.parse(JSON.stringify(board.elements.filter((x) => selected.includes(x.id))));
         pastes.current = 0;
+      } else if (!meta && !e.altKey && e.key.toLowerCase() === "q") {
+        setToolLock((l) => !l); // Excaliflow's toggleToolLock shortcut
       } else if (!meta && !e.altKey && KEYS[e.key.toLowerCase()]) {
         setTool(KEYS[e.key.toLowerCase()]);
       } else if (e.key === "Escape") {
@@ -363,10 +571,23 @@ export default function Editor() {
         setSelected(r.ids);
       }
     }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key !== " ") return;
+      spaceRef.current = false;
+      setSpaceDown(false);
+    }
+    const onBlur = () => {
+      spaceRef.current = false;
+      setSpaceDown(false);
+    };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
     window.addEventListener("paste", onPaste);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
       window.removeEventListener("paste", onPaste);
     };
   });
@@ -379,6 +600,10 @@ export default function Editor() {
   function onPointerDown(e: React.PointerEvent) {
     if (!board || editing) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (e.button === 1 || spaceRef.current) {
+      setDrag({ kind: "pan", last: [e.clientX, e.clientY] }); // middle-drag or Space+drag pans
+      return;
+    }
     const [x, y] = toBoard(e);
     if (morphTo) {
       setDrag({ kind: "morph", last: [x, y] });
@@ -408,10 +633,17 @@ export default function Editor() {
   function onPointerMove(e: React.PointerEvent) {
     const drag = dragRef.current;
     if (!drag) return;
+    if (drag.kind === "pan") {
+      const [dx, dy] = [e.clientX - drag.last[0], e.clientY - drag.last[1]];
+      setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+      setDrag({ ...drag, last: [e.clientX, e.clientY] });
+      return;
+    }
     const [x, y] = toBoard(e);
     if (drag.kind === "move") {
-      update((b) => selected.reduce((acc, id) => moveElement(acc, id, x - drag.last[0], y - drag.last[1]), b));
-      setDrag({ ...drag, last: [x, y] });
+      // One Undo point for the whole drag: recorded on its first move only.
+      update((b) => selected.reduce((acc, id) => moveElement(acc, id, x - drag.last[0], y - drag.last[1]), b), { record: !drag.moved });
+      setDrag({ ...drag, last: [x, y], moved: true });
     } else if (drag.kind === "morph") {
       setMorphTo((m) => m && { ...m, to: { ...m.to, x: m.to.x + x - drag.last[0], y: m.to.y + y - drag.last[1] } });
       setDrag({ ...drag, last: [x, y] });
@@ -454,6 +686,7 @@ export default function Editor() {
         const added = el;
         update((b) => addElement(b, added));
         setSelected([added.id]);
+        if (!toolLockRef.current) setTool("select"); // Excaliflow: the tool drops back to Select unless locked
       }
     }
     setDrag(null);
@@ -471,7 +704,29 @@ export default function Editor() {
   const dragFrom = useRef<number | null>(null);
   const isEmpty = presentation?.boards.length === 1 && isEmptyBoard(presentation.boards[0]);
   const firstSelected = board?.elements.find((e) => e.id === selected[0]);
-  const restyle = (patch: Partial<Element>) => update((b) => ({ ...b, elements: b.elements.map((e) => (selected.includes(e.id) ? { ...e, ...patch } : e)) }));
+  // Merge keys include the selection, so dragging a slider on one Element then another is two Undo steps.
+  const restyle = (patch: Parameters<typeof restyleElements>[2], key?: string) =>
+    update((b) => restyleElements(b, selected, patch), { key: key && `${key}:${selected.join()}` });
+  const selectedEls = board ? board.elements.filter((e) => selected.includes(e.id)) : [];
+  const selectedArrows = selectedEls.filter((e) => e.type === "arrow");
+  const empty = board?.elements.length === 0;
+
+  // The quick action bar floats above the selection (below it when there is no room), in viewport pixels.
+  function quickBarPos(): { left: number; top: number } | null {
+    const cv = canvasRef.current;
+    const vp = viewportRef.current;
+    if (!cv || !vp || !selectedEls.length || tool !== "select" || drag || editing) return null;
+    const r = cv.getBoundingClientRect();
+    const v = vp.getBoundingClientRect();
+    const bs = selectedEls.map(boundsOf);
+    const [x1, x2] = [Math.min(...bs.map((b) => b.x)), Math.max(...bs.map((b) => b.x + b.width))];
+    const [y1, y2] = [Math.min(...bs.map((b) => b.y)), Math.max(...bs.map((b) => b.y + b.height))];
+    const sx = (bx: number) => r.left - v.left + (bx / BOARD_WIDTH) * r.width;
+    const sy = (by: number) => r.top - v.top + (by / BOARD_HEIGHT) * r.height;
+    const above = sy(y1) - 8 - 52;
+    return { left: Math.min(Math.max((sx(x1) + sx(x2)) / 2, 170), Math.max(170, v.width - 170)), top: above >= 8 ? above : Math.min(sy(y2) + 20, v.height - 120) };
+  }
+  const barPos = quickBarPos();
 
   return (
     <TooltipProvider>
@@ -479,6 +734,18 @@ export default function Editor() {
         <TopBar
           actions={
             <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-1"><Download /> Export <ChevronDown /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={!board} onSelect={savePng}>Save PNG</DropdownMenuItem>
+                  <DropdownMenuItem disabled={!board} onSelect={copyPng}>Copy PNG</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={!presentation} onSelect={saveJson}>Save Presentation (JSON)</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => exportRef.current?.click()}>Open Presentation (JSON)…</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button asChild variant="outline"><a href="/record">Try</a></Button>
               <Button asChild><a href="/record">Record</a></Button>
               <Button variant="outline" disabled>Share <Badge variant="secondary">Pro</Badge></Button>
@@ -489,23 +756,20 @@ export default function Editor() {
             aria-label="Presentation title"
             className="h-8 max-w-64 border-transparent bg-transparent font-medium shadow-none hover:border-input"
             value={presentation?.title ?? ""}
-            onChange={(e) => updateDeck((p) => ({ ...p, title: e.target.value }))}
+            onChange={(e) => updateDeck((p) => ({ ...p, title: e.target.value }), { key: "title" })}
           />
           <select aria-label="Theme" className={selectCls} value={presentation?.themeId ?? "paper"} onChange={(e) => updateDeck((p) => ({ ...p, themeId: e.target.value }))}>
             {THEMES.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
+          <div role="group" aria-label="History" className="flex items-center">
+            <IconButton label="Undo" tip="Undo (⌘Z)" disabled={!canUndo} onClick={() => stepHistory("undo")}><Undo2 /></IconButton>
+            <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!canRedo} onClick={() => stepHistory("redo")}><Redo2 /></IconButton>
+          </div>
           <SyncStatus />
         </TopBar>
         <h1 className="sr-only">Flowcam Studio</h1>
-        {error && (
-          <p role="alert" className="flex items-center gap-2 bg-destructive/10 px-4 py-1.5 text-sm text-destructive">
-            {error} <Button size="xs" variant="outline" onClick={() => setError(null)}>Dismiss</Button>
-          </p>
-        )}
-        {status && <p role="status" className="bg-accent px-4 py-1.5 text-sm text-accent-foreground">{status}</p>}
-
         <div className="flex min-h-0 flex-1">
           <nav aria-label="Boards" className={cn("flex shrink-0 flex-col gap-2 border-r bg-background p-2", boardsOpen ? "w-52" : "w-12 items-center")}>
             <div className="flex items-center justify-between">
@@ -583,14 +847,18 @@ export default function Editor() {
                 ))}
               </section>
             )}
-            <div className="relative min-h-0 flex-1">
+            <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden">
               <div className="absolute inset-4 grid place-items-center [container-type:size]">
-                <div className="relative aspect-video w-[min(100cqw,calc(100cqh*16/9))] [container-type:inline-size]">
+                <div
+                  ref={stageRef}
+                  style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})`, transformOrigin: "0 0" }}
+                  className="relative aspect-video w-[min(100cqw,calc(100cqh*16/9))] [container-type:inline-size]"
+                >
                   <canvas
                     ref={canvasRef}
                     width={BOARD_WIDTH}
                     height={BOARD_HEIGHT}
-                    className="block aspect-video w-full touch-none rounded-lg border bg-white shadow-[var(--panel-shadow)]"
+                    className={cn("block aspect-video w-full touch-none rounded-lg border bg-white shadow-[var(--panel-shadow)]", (spaceDown || drag?.kind === "pan") && "cursor-grab")}
                     aria-label="Board"
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
@@ -628,8 +896,10 @@ export default function Editor() {
                       }}
                     />
                   )}
+                </div>
+              </div>
                   {/* Excaliflow's floating tool island (#bottomToolDock, .glass-panel, .dock-tool-btn, .dock-key). */}
-                  <Panel role="toolbar" aria-label="Drawing tools" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 p-1">
+                  <Panel role="toolbar" aria-label="Drawing tools" className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 p-1">
                     {TOOLS.map((t) => (
                       <Tooltip key={t.tool}>
                         <TooltipTrigger asChild>
@@ -646,6 +916,19 @@ export default function Editor() {
                         <TooltipContent>{t.label} ({t.key.toUpperCase()} or {t.hint})</TooltipContent>
                       </Tooltip>
                     ))}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          aria-label="Lock tool"
+                          aria-pressed={toolLock}
+                          onClick={() => setToolLock((l) => !l)}
+                          className="grid size-9 place-items-center rounded-lg border border-transparent text-muted-foreground outline-none transition hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 aria-pressed:bg-accent aria-pressed:text-accent-foreground"
+                        >
+                          {toolLock ? <Lock className="size-[17px]" /> : <LockOpen className="size-[17px]" />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Keep the tool after drawing (Q)</TooltipContent>
+                    </Tooltip>
                     <div aria-hidden className="mx-1 h-5 w-px bg-border" />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -667,9 +950,80 @@ export default function Editor() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </Panel>
-                </div>
-              </div>
+              {/* Quick action bar: Excaliflow's quickHud (hudColorDots, hudDuplicateBtn, hudDeleteBtn, hudFlipArrowBtn, hudArrowFlowBtn, hudFontGroup). */}
+              {barPos && firstSelected && (
+                <Panel role="toolbar" aria-label="Quick actions" style={{ left: barPos.left, top: barPos.top }} className="absolute z-10 flex h-11 -translate-x-1/2 items-center gap-1 px-2">
+                  <div role="group" aria-label="Quick colour" className="flex items-center gap-1">
+                    {theme.palette.map((c) => (
+                      <button
+                        key={c}
+                        aria-label={`Quick colour ${c}`}
+                        aria-pressed={firstSelected.strokeColor === c}
+                        style={{ background: c }}
+                        onClick={() => restyle({ strokeColor: c })}
+                        className="size-5 rounded-full border outline-none transition hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary aria-pressed:ring-offset-1 aria-pressed:ring-offset-background"
+                      />
+                    ))}
+                  </div>
+                  <div aria-hidden className="mx-0.5 h-5 w-px bg-border" />
+                  <IconButton label="Duplicate" tip="Duplicate (⌘D)" onClick={duplicate}><Copy /></IconButton>
+                  <IconButton label="Delete selection" tip="Delete (Del)" onClick={deleteSelected}><Trash2 /></IconButton>
+                  {selectedArrows.length > 0 && (
+                    <>
+                      <IconButton label="Flip arrow" tip="Reverse arrow direction" onClick={() => update((b) => flipArrows(b, selected))}><ArrowLeftRight /></IconButton>
+                      <IconButton
+                        label={selectedArrows[0].flowEnabled === false ? "Turn Flow on" : "Turn Flow off"}
+                        tip={selectedArrows[0].flowEnabled === false ? "Flow is off: turn on" : "Flow is on: turn off"}
+                        onClick={() => update((b) => toggleArrowFlow(b, selected))}
+                      >
+                        {selectedArrows[0].flowEnabled === false ? <ZapOff /> : <Zap />}
+                      </IconButton>
+                    </>
+                  )}
+                  {selectedEls.some((e) => TEXTUAL.has(e.type)) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" aria-label="Quick font"><Type /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {FONT_IDS.map((id) => (
+                          <DropdownMenuItem key={id} style={{ fontFamily: FONT_STACKS[id] }} onSelect={() => restyle({ fontOverride: id })}>{FONT_LABELS[id]}</DropdownMenuItem>
+                        ))}
+                        <DropdownMenuItem onSelect={() => restyle({ fontOverride: undefined })}>Theme default</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </Panel>
+              )}
+
+              {/* Excaliflow's canvasHintPill, shown only on an empty Board. */}
+              {empty && !drag && !editing && (
+                <Panel className="pointer-events-none absolute bottom-20 left-1/2 flex -translate-x-1/2 gap-3 px-3 py-1.5 text-xs text-muted-foreground">
+                  <span>Pick a tool and <b>drag</b> on the Board</span>
+                  <span><b>Space</b> + drag pans</span>
+                  <span><b>⌘</b> + scroll zooms</span>
+                </Panel>
+              )}
+
+              {/* Excaliflow's zoomPill. 100% is the Board at its real 1920 pixel width; Fit is the whole Board in view. */}
+              <Panel role="group" aria-label="Zoom" className="absolute right-3 bottom-3 z-10 flex items-center gap-0.5 p-1">
+                <IconButton label="Zoom out" onClick={() => zoomCentre(1 / 1.25)}><Minus /></IconButton>
+                <Button variant="ghost" size="sm" className="min-w-14 tabular-nums" aria-label={`Zoom ${Math.round(((view.z * fitW) / BOARD_WIDTH) * 100)}%, click to reset to 100%`} onClick={actualSize}>
+                  {Math.round(((view.z * fitW) / BOARD_WIDTH) * 100)}%
+                </Button>
+                <IconButton label="Zoom in" onClick={() => zoomCentre(1.25)}><Plus /></IconButton>
+                <Button variant="ghost" size="sm" aria-label="Fit Board to screen" onClick={fit}>Fit</Button>
+              </Panel>
+
+              {/* Excaliflow's studioToast: saved, copied and error messages. */}
+              {error && (
+                <p role="alert" className="pointer-events-none absolute top-3 left-1/2 z-20 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/30 bg-background px-3 py-1.5 text-sm text-destructive shadow-[var(--panel-shadow)]">
+                  {error} <Button size="xs" variant="outline" className="pointer-events-auto" onClick={() => setError(null)}>Dismiss</Button>
+                </p>
+              )}
+              {!error && status && <p role="status" className="pointer-events-none absolute top-3 left-1/2 z-20 max-w-[90%] -translate-x-1/2 rounded-lg border bg-background px-3 py-1.5 text-sm shadow-[var(--panel-shadow)]">{status}</p>}
             </div>
+            <input ref={exportRef} type="file" hidden aria-label="Open Presentation JSON" accept=".json,application/json" onChange={(e) => { const f = e.target.files?.[0]; if (f) openJson(f); e.target.value = ""; }} />
             <input ref={uploadRef} type="file" hidden aria-label="Upload image" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); e.target.value = ""; }} />
             <input ref={importRef} type="file" hidden aria-label="Import .excalidraw" accept=".excalidraw,.json" onChange={(e) => { const f = e.target.files?.[0]; if (f) importExcalidraw(f); e.target.value = ""; }} />
             <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
@@ -722,6 +1076,38 @@ export default function Editor() {
                       <Section title="Stroke style">
                         <Segmented label="Stroke style" value={firstSelected.strokeStyle} options={STROKES} onChange={(v) => restyle({ strokeStyle: v as Element["strokeStyle"] })} />
                       </Section>
+                      <Section title="Stroke width">
+                        <Segmented label="Stroke width" value={String(firstSelected.strokeWidth)} options={WIDTHS} onChange={(v) => restyle({ strokeWidth: Number(v) })} />
+                      </Section>
+                      <Section title="Roughness">
+                        <Segmented wrap label="Roughness" value={firstSelected.roughnessOverride === undefined ? "theme" : String(firstSelected.roughnessOverride)} options={ROUGHNESSES} onChange={(v) => restyle({ roughnessOverride: v === "theme" ? undefined : Number(v) })} />
+                      </Section>
+                      <Section title="Font">
+                        <Button size="sm" variant="outline" aria-pressed={firstSelected.fontOverride === undefined} className="aria-pressed:bg-accent aria-pressed:text-accent-foreground" onClick={() => restyle({ fontOverride: undefined })}>Theme default</Button>
+                        <FontPicker value={firstSelected.fontOverride ?? (theme.fontFamily as FontId)} onChange={(f) => restyle({ fontOverride: f })} />
+                      </Section>
+                      {firstSelected.type === "arrow" && (
+                        <>
+                          <Section title="Arrow">
+                            <Segmented label="Curve" value={firstSelected.curveType ?? "curved"} options={CURVES} onChange={(v) => restyle({ curveType: v as "curved" | "straight", ...(v === "curved" && !firstSelected.curveOffset ? { curveOffset: 40 } : {}) })} />
+                          </Section>
+                          <Section title="Flow mode">
+                            <Segmented wrap label="Flow mode" value={firstSelected.flowMode ?? "comets"} options={FLOW_LABELS as [string, string][]} onChange={(v) => restyle({ flowMode: v as FlowMode })} />
+                          </Section>
+                          <Section title={`Flow speed (${(firstSelected.flowSpeed ?? 1).toFixed(2)}x)`}>
+                            <input
+                              type="range"
+                              aria-label="Flow speed"
+                              min={MIN_FLOW_SPEED}
+                              max={MAX_FLOW_SPEED}
+                              step={0.05}
+                              value={firstSelected.flowSpeed ?? 1}
+                              onChange={(e) => restyle({ flowSpeed: Number(e.target.value) }, "flowSpeed")}
+                              className="w-full accent-primary"
+                            />
+                          </Section>
+                        </>
+                      )}
                     </>
                   )}
                 </TabsContent>
@@ -803,7 +1189,7 @@ export default function Editor() {
                         placeholder="Words to say during this Step"
                         className="w-full rounded-lg border border-input bg-background p-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         value={step.script ?? ""}
-                        onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }))}
+                        onChange={(e) => update((b) => updateStep(b, activeStep, { script: e.target.value }), { key: `script-${indexRef.current}-${activeStep}` })}
                       />
                     </>
                   ) : (

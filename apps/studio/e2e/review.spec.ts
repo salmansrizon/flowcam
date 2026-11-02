@@ -164,6 +164,73 @@ test("Review trims dead air and captions; Timeline edits persist and export at t
   expect(Math.abs(meta.duration - edited)).toBeLessThan(0.15);
 });
 
+test("the multi-track Timeline: rows, zoom, and a Text track that persists", async ({ page }) => {
+  test.setTimeout(90_000);
+  const recordingId = await record(page, 1, 2500);
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await page.goto(`/review?recording=${recordingId}&edit=1`);
+  const timeline = page.getByRole("group", { name: "Timeline", exact: true });
+  await expect(page.getByTestId("timeline-part").first()).toBeVisible({ timeout: 30_000 });
+  for (const label of ["Clips", "Steps", "Captions", "Layout", "Text"]) await expect(timeline.getByText(label, { exact: true })).toBeVisible();
+  await saved(page);
+  await page.screenshot(shot("timeline-rows"));
+
+  // Zooming in makes the ruler finer.
+  const ruler = page.getByTestId("ruler");
+  const before = await ruler.textContent();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(ruler).not.toHaveText(before!);
+  await expect(page.getByTestId("timeline-zoom")).not.toHaveText("100%");
+
+  // Add text at the playhead, change its text and size; it persists.
+  await page.getByRole("button", { name: "Zoom out" }).click({ clickCount: 3 });
+  await page.getByLabel("Playhead", { exact: true }).fill("500");
+  await page.getByRole("button", { name: "Add text" }).click();
+  const block = page.getByTestId("timeline-text");
+  await expect(block).toHaveCount(1);
+  await expect(block).toHaveAttribute("data-start", "500");
+  await page.getByLabel("Text", { exact: true }).fill("Hello there");
+  await page.getByLabel("Size", { exact: true }).fill("90");
+  await saved(page);
+  await page.screenshot(shot("timeline-text"));
+  await page.reload();
+  await expect(block).toHaveCount(1);
+  await block.click({ position: { x: 20, y: 10 } });
+  await expect(page.getByLabel("Text", { exact: true })).toHaveValue("Hello there");
+  await expect(page.getByLabel("Size", { exact: true })).toHaveValue("90");
+  const stored = (await readOpfs(page, recordingId, "edits.json")).texts[0];
+  expect(stored).toMatchObject({ text: "Hello there", size: 90, font: "sans", color: "#ffffff", box: true });
+
+  // Dragging the block moves it in time (it ends at the Clip end, so it can only go earlier); Undo puts it back.
+  await block.scrollIntoViewIfNeeded();
+  const box = (await block.boundingBox())!;
+  const start = Number(await block.getAttribute("data-start"));
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 20, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => Number(await block.getAttribute("data-start"))).toBeLessThan(start);
+  await saved(page);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(block).toHaveAttribute("data-start", String(start));
+
+  // Typing is one Undo step, not one per keystroke.
+  await page.waitForTimeout(500);
+  await page.getByLabel("Text", { exact: true }).focus();
+  await page.keyboard.press("End");
+  await page.getByLabel("Text", { exact: true }).pressSequentially(" again", { delay: 30 });
+  await expect(page.getByLabel("Text", { exact: true })).toHaveValue("Hello there again");
+  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByLabel("Text", { exact: true })).toHaveValue("Hello there");
+
+  // Delete removes it.
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(block).toHaveCount(0);
+});
+
 test("the Review in dark mode has the settings tabs", async ({ page }) => {
   test.setTimeout(60_000);
   const recordingId = await record(page, 1, 1000);

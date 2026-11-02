@@ -118,4 +118,19 @@ test.describe("renderer golden frames", () => {
     expect(paper).toEqual([255, 255, 255, 255]);
     expect(chalk).toEqual([0x1f, 0x3a, 0x2e, 255]);
   });
+
+  test("each Flow mode is deterministic across page loads and differs from comets; speed and overrides change pixels", async ({ page }) => {
+    const frame = async (q: string) => {
+      await open(page, 1700, `&scene=flow${q}`);
+      return dataUrl(page);
+    };
+    const comets = await frame("&mode=comets");
+    for (const mode of ["pulse", "neon", "dashed"]) {
+      const first = await frame(`&mode=${mode}`);
+      expect(await frame(`&mode=${mode}`)).toBe(first);
+      expect(first).not.toBe(comets);
+    }
+    expect(await frame("&mode=comets&speed=3")).not.toBe(comets);
+    expect(await frame("&mode=comets&override=1")).not.toBe(comets);
+  });
 });

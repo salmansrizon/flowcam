@@ -1,4 +1,4 @@
-import { ELEMENT_TYPES, LAYOUTS, THEMES, TRANSITIONS, type Board, type Element, type Presentation, type Step } from "./model";
+import { ELEMENT_TYPES, FLOW_MODES, FONT_IDS, LAYOUTS, MAX_FLOW_SPEED, MAX_ROUGHNESS, MIN_FLOW_SPEED, THEMES, TRANSITIONS, type Board, type Element, type Presentation, type Step } from "./model";
 import { LOG_SCHEMA_VERSION, type ClipLog, type LogEvent } from "./log";
 
 // Data read back from browser storage or the cloud is untrusted: check shape before use.
@@ -55,6 +55,10 @@ function element(v: unknown, path: string): Element {
   }
   if (type === "freedraw") points(o.points, `${path}.points`, 2);
   if (type === "image") str(o.imageId, `${path}.imageId`);
+  if (o.flowMode !== undefined) oneOf(o.flowMode, FLOW_MODES, `${path}.flowMode`);
+  if (o.flowSpeed !== undefined && !(num(o.flowSpeed, `${path}.flowSpeed`) >= MIN_FLOW_SPEED && (o.flowSpeed as number) <= MAX_FLOW_SPEED)) fail(`${path}.flowSpeed`, `${MIN_FLOW_SPEED} to ${MAX_FLOW_SPEED}`);
+  if (o.fontOverride !== undefined) oneOf(o.fontOverride, FONT_IDS, `${path}.fontOverride`);
+  if (o.roughnessOverride !== undefined && !(num(o.roughnessOverride, `${path}.roughnessOverride`) >= 0 && (o.roughnessOverride as number) <= MAX_ROUGHNESS)) fail(`${path}.roughnessOverride`, `0 to ${MAX_ROUGHNESS}`);
   return o as unknown as Element;
 }
 

@@ -55,7 +55,33 @@ export interface Element {
   points?: [number, number][];
   /** Image: id of the stored picture (SHA-256 of its bytes), copied into storage so it never breaks (ADR 0002). */
   imageId?: string;
+  /** Arrows: how the Flow looks (default "comets") and how fast it moves (default 1). */
+  flowMode?: FlowMode;
+  flowSpeed?: number;
+  /** Set in the Style panel to override the Theme for this Element; absent means "follow the Theme". */
+  fontOverride?: FontId;
+  roughnessOverride?: number;
 }
+
+/** Flow styles, from Excaliflow. */
+export const FLOW_MODES = ["comets", "pulse", "neon", "dashed"] as const;
+export type FlowMode = (typeof FLOW_MODES)[number];
+export const MIN_FLOW_SPEED = 0.25;
+export const MAX_FLOW_SPEED = 3;
+
+/** Font families Boards and text overlays can use; each Theme names one as its default. */
+export const FONT_IDS = ["hand", "sans", "code", "serif"] as const;
+export type FontId = (typeof FONT_IDS)[number];
+export const MAX_ROUGHNESS = 3;
+
+/** CSS font stacks for each font id, shared by the renderer, the font picker and text overlays. */
+export const FONT_STACKS: Record<FontId, string> = {
+  hand: "'Excalifont', 'Virgil', 'Patrick Hand', 'Architects Daughter', 'Caveat', cursive",
+  sans: "'Assistant', 'Nunito', 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+  code: "'Cascadia', 'Geist Mono', monospace",
+  serif: "Georgia, 'Times New Roman', serif",
+};
+export const FONT_LABELS: Record<FontId, string> = { hand: "Hand-drawn", sans: "Sans", code: "Code", serif: "Serif" };
 
 export const LAYOUTS = ["bubble", "side-by-side", "camera-only", "board-only"] as const;
 /** How the Camera and the Board share the picture (CONTEXT.md: Layout). */

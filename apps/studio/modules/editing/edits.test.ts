@@ -138,6 +138,18 @@ describe("parseEdits", () => {
     expect(parseEdits(JSON.parse(JSON.stringify(defaultEdits(clips))), ids).deadAir).toBeNull();
   });
 
+  it("accepts the optional aspect, gradient, text overlays and colour correction, and rejects bad values", () => {
+    const e = base();
+    const text = { id: "t1", clipId: "a", start: 0, end: 1000, text: "Hello", x: 0.5, y: 0.8, size: 48, font: "sans", color: "#ffffff", box: true };
+    const full = { ...e, aspect: "9:16", frame: { ...e.frame, gradient: { from: "#112233", to: "#445566", angle: 135 } }, texts: [text], color: { brightness: 10, contrast: -5, saturation: 0, temperature: 20 } };
+    expect(parseEdits(JSON.parse(JSON.stringify(full)), ids)).toEqual(full);
+    expect(() => parseEdits({ ...e, aspect: "21:9" }, ids)).toThrow(InvalidDataError);
+    expect(() => parseEdits({ ...e, frame: { ...e.frame, gradient: { from: "red", to: "#445566", angle: 0 } } }, ids)).toThrow(InvalidDataError);
+    expect(() => parseEdits({ ...e, texts: [{ ...text, clipId: "zzz" }] }, ids)).toThrow(InvalidDataError);
+    expect(() => parseEdits({ ...e, texts: [text, text] }, ids)).toThrow(InvalidDataError);
+    expect(() => parseEdits({ ...e, color: { brightness: 300, contrast: 0, saturation: 0, temperature: 0 } }, ids)).toThrow(InvalidDataError);
+  });
+
   it("accepts frame corners in range and rejects them outside it", () => {
     const e = base();
     expect(parseEdits({ ...e, frame: { ...e.frame, corners: 32 } }, ids).frame.corners).toBe(32);
