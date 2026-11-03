@@ -68,8 +68,7 @@ test("Share opens the upgrade panel with prices from the config", async ({ page 
   await expect(panel).toContainText("$20/month");
   await expect(panel).toContainText("7-day Trial");
   await expect(panel).toContainText("200 Credits");
-  await expect(panel.getByRole("button", { name: "Start Trial" })).toBeDisabled();
-  await expect(panel).toContainText("Billing is coming soon");
+  await expect(panel.getByRole("button", { name: "Start Trial" })).toBeEnabled();
 });
 
 for (const [name, body] of [["invalid", { currency: "usd", list_monthly_cents: -1 }], ["missing", null]] as const) {

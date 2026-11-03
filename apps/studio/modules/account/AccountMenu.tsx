@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, CreditCard, Link2, LogOut, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { planLabel, type PlanLabel } from "./plan";
+import { cancelNote, planLabel, type PlanLabel } from "./plan";
+import { openPortal } from "../billing/client";
 import { CreditBalance } from "../credits/CreditBalance";
 
-type Who = { email: string; plan: PlanLabel } | "out" | null; // null while loading
+type Who = { email: string; plan: PlanLabel; note: string | null } | "out" | null; // null while loading
 
 /** The TopBar's account control: Sign in when signed out; email, plan and Sign out when signed in. */
 export function AccountMenu() {
@@ -24,8 +25,9 @@ export function AccountMenu() {
       if (!live) return;
       if (!data.user) return setWho("out");
       // Read through the user's own row-level security.
-      const { data: sub } = await supabase.from("subscriptions").select("plan,status,current_period_end").maybeSingle();
-      if (live) setWho({ email: data.user.email ?? "Signed in", plan: planLabel(sub) });
+      const { data: sub } = await supabase.from("subscriptions").select("plan,status,current_period_end,cancel_at_period_end").maybeSingle();
+      const plan = planLabel(sub);
+      if (live) setWho({ email: data.user.email ?? "Signed in", plan, note: cancelNote(sub, plan) });
     }
     void load();
     const { data } = supabase.auth.onAuthStateChange((event) => {
@@ -61,9 +63,18 @@ export function AccountMenu() {
           <Badge variant={who.plan === "Free" ? "secondary" : "default"} className="w-fit" data-testid="plan">
             {who.plan}
           </Badge>
+          {who.note && <span className="text-xs font-normal text-muted-foreground" data-testid="plan-note">{who.note}</span>}
           <CreditBalance />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/shares">
+            <Link2 /> My Share Links
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void openPortal()}>
+          <CreditCard /> Manage billing
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void supabaseBrowser().auth.signOut()}>
           <LogOut /> Sign out
         </DropdownMenuItem>
