@@ -10,7 +10,8 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run",
     "test:integration": "playwright test",
-    "dev:grant-plan": "node --experimental-strip-types scripts/grant-plan.ts"
+    "dev:grant-plan": "node --experimental-strip-types scripts/grant-plan.ts",
+    "capture:landing": "playwright test -c scripts/capture/playwright.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1",

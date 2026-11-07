@@ -11,6 +11,9 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://mlvqqzpgmaqxpfvfalrj.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_f_1_rjhdfw0uZBZD-osTfQ_JQ1Z9Xdv
+      # Production builds refuse to link to localhost; the integration tests set their own local origins.
+      NEXT_PUBLIC_WEB_URL: https://getflowcam.com
+      NEXT_PUBLIC_STUDIO_URL: https://app.getflowcam.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

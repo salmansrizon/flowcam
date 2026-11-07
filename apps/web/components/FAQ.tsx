@@ -1,13 +1,13 @@
 const faqs = [
-  ["When does Flowcam launch?", "Soon. We have no date yet. Join the waitlist and we will send one email when it opens."],
+  ["When can I use Flowcam?", "Now. The Studio is free in your browser, no account needed. Pro (share links, Sync, 4K and AI) launches soon: join the Pro waitlist and we will send one email the day it opens."],
   ["How much will it cost?", "Free is $0. Pro is $20/month or $200/year, and the Founding Price is $17/month or $170/year, locked in for as long as you stay subscribed. Prices exclude tax."],
-  ["What's free?", "The full editor, Steps, Teleprompter, camera layouts and retakes. You can export MP4 up to 1080p with a small \"Made with Flowcam\" watermark, and you get 50 AI Credits once when you sign up."],
+  ["What's free?", "The full editor, Steps, Teleprompter, camera layouts and retakes. You can export MP4 up to 1080p with a small \"Made with Flowcam\" watermark, and when accounts open with Pro you get 50 AI Credits once for signing up."],
   ["Do I need to install anything?", "No. Flowcam starts as a web app, and you can record without an account on the Free plan."],
   ["Is there a Mac or Windows app?", "Yes, later. You will download the apps from this website. They add screen polish such as auto-zoom, cursor smoothing and a keystroke overlay."],
   ["Where are my recordings stored?", "On the Free plan, your recordings stay on your device. Pro adds sync across devices and 100 GB of cloud storage."],
   ["Can I write in Bangla?", "Yes. Boards can be written in Bangla with handwritten-style fonts, as well as English. The interface is in English."],
   ["Can I import Excalidraw files?", "Yes. You can import Excalidraw files into a Board."],
-  ["What happens when I join the waitlist?", "You get one launch email, and you can unsubscribe anytime."],
+  ["What happens when I join the Pro waitlist?", "You get one email when Pro launches, and you can unsubscribe anytime. See our privacy page for what we store."],
 ];
 
 export function FAQ() {

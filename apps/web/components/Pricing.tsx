@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STUDIO_URL } from "@/lib/site";
 import { PricingToggle } from "./PricingToggle";
 import m from "./DeepDives.module.css";
 
@@ -42,18 +43,18 @@ export function Pricing() {
             <h3 className="text-2xl font-bold text-ink">Free</h3>
             <p className="mt-4 text-5xl font-extrabold text-ink">$0</p>
             <List items={free} />
-            <Link href="#waitlist" className="btn-ghost mt-8 justify-center">Join the waitlist</Link>
+            <a href={STUDIO_URL} className="btn-ghost mt-8 justify-center">Try Flowcam free</a>
           </div>
           <div className={`tile tile-hover relative flex flex-col border-2 !border-green p-6 sm:p-8 ${m.shine}`}>
             <span className="absolute -top-3 right-6 rounded-full bg-green px-3 py-1 text-xs font-bold text-white">Founding price</span>
             <h3 className="text-2xl font-bold text-ink">Pro</h3>
             <div className="mt-4"><PricingToggle /></div>
             <List items={pro} />
-            <Link href="#waitlist" className="btn-green mt-8">Join the waitlist</Link>
+            <Link href="/waitlist" className="btn-green mt-8">Get notified for Pro</Link>
           </div>
         </div>
         <p className="mt-6 text-center text-sm text-muted">
-          Prices exclude tax. Extra Credits: 1,000 for $10, never expire. 7-day Pro trial at launch.
+          Prices exclude tax. Extra Credits: 1,000 for $10, never expire. 7-day Pro Trial when Pro launches.
         </p>
       </div>
     </section>

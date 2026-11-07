@@ -1,4 +1,5 @@
-import { FlowDiagramArt } from "./FlowDiagramArt";
+import Link from "next/link";
+import { ProductShot } from "./ProductShot";
 
 export function FlowDiagram() {
   return (
@@ -8,12 +9,9 @@ export function FlowDiagram() {
           <h2 className="text-3xl font-extrabold tracking-tight text-ink sm:text-5xl">From a topic to a finished video</h2>
           <p className="mt-5 text-ink-soft">Type a topic and Flowcam drafts a Board, splits it into Steps and writes a script for each one. You edit anything you like.</p>
           <p className="mt-3 text-ink-soft">Then present it on camera or narrate it, and send a share link when you are done.</p>
-          <a href="#waitlist" className="btn-green mt-7">Join the waitlist</a>
+          <Link href="/waitlist" className="btn-green mt-7">Get notified for Pro</Link>
         </div>
-        <div className="tile tile-hover p-4 sm:p-6">
-          <FlowDiagramArt />
-          <p className="sr-only">Flow: your topic leads to an AI-drafted Board, then Steps and a script. From there you either present on camera or narrate, and both lead to a share link.</p>
-        </div>
+        <ProductShot src="/product/review.jpg" alt="The Review screen: the finished video on a gradient background, ready to export" />
       </div>
     </section>
   );
