@@ -1,6 +1,7 @@
 import { parsePresentation } from "@flowcam/domain";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { isProOpen } from "@/modules/onboarding/launch";
 import { videoHost } from "@/modules/share/host";
 import { isProNow, newShareId } from "@/modules/share/links";
 import { hashPassword } from "@/modules/share/password";
@@ -9,6 +10,7 @@ const MAX_BYTES = 500 * 1024 * 1024;
 
 /** Creates a Share Link from a multipart body: video (MP4), title, presentation (JSON), optional password. Pro only. */
 export async function POST(req: Request) {
+  if (!isProOpen()) return Response.json({ error: "Pro launches soon." }, { status: 404 }); // proxy.ts skips this route
   const { data: { user } } = await (await supabaseServer()).auth.getUser();
   if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });
   if (!(await isProNow(user.id))) return Response.json({ error: "Share Links are a Pro feature." }, { status: 403 });

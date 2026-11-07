@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s · Flowcam",
   },
   description:
-    "Flowcam is a studio for explainer creators and online teachers: build a hand-drawn diagram, present it step by step on camera, and share a polished video. Join the waitlist.",
+    "Flowcam is a studio for explainer creators and online teachers: build a hand-drawn diagram, present it step by step on camera, and share a polished video. Free in your browser.",
   openGraph: { siteName: "Flowcam", type: "website" },
 };
 

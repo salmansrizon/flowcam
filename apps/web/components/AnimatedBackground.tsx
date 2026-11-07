@@ -1,11 +1,18 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 type Dot = { x: number; y: number; vx: number; vy: number; w: number };
 type Comet = { a: number; b: number; t: number } | null;
 
+/** The 2D dot background; "/" and "/waitlist" use the three.js BoardsScene instead. */
 export function AnimatedBackground() {
+  const path = usePathname();
+  return path === "/" || path === "/waitlist" ? null : <Dots />;
+}
+
+function Dots() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

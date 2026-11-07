@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { WaitlistForm } from "@/components/WaitlistForm";
+import { STUDIO_URL } from "@/lib/site";
 import { features, featureBySlug } from "@/lib/features";
 
 export const dynamicParams = false;
@@ -57,8 +58,9 @@ export default async function FeaturePage({ params }: PageProps<"/features/[slug
               <p className="mt-4 text-lg text-ink-soft">{f.summary}</p>
               <p className="mt-3 text-sm text-muted">Best for: {f.bestFor}</p>
               <div className="mt-6">
+                <a href={STUDIO_URL} className="btn-green">Try Flowcam free</a>
+                <p className="mt-6 mb-2 text-sm font-semibold text-ink">Pro launches soon. Founding price $17/mo, locked for life.</p>
                 <WaitlistForm source={f.slug} />
-                <p className="mt-3 text-sm text-muted">Launching soon. Founding price $17/mo, locked for life.</p>
               </div>
             </div>
             <div className="tile flex items-center justify-center p-6">

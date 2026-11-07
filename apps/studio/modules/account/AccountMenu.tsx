@@ -10,11 +10,17 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { cancelNote, planLabel, type PlanLabel } from "./plan";
 import { openPortal } from "../billing/client";
 import { CreditBalance } from "../credits/CreditBalance";
+import { useProOpen } from "../onboarding/ProSoon";
 
 type Who = { email: string; plan: PlanLabel; note: string | null } | "out" | null; // null while loading
 
 /** The TopBar's account control: Sign in when signed out; email, plan and Sign out when signed in. */
 export function AccountMenu() {
+  const pro = useProOpen();
+  return pro ? <Account /> : null; // Accounts open with Pro; until then the Studio is Free and local-only.
+}
+
+function Account() {
   const [who, setWho] = useState<Who>(null);
 
   useEffect(() => {

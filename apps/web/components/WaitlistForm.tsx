@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId } from "react";
 import { joinWaitlist, type WaitlistState } from "@/app/actions";
 
@@ -43,13 +44,15 @@ export function WaitlistForm({ source = "home", compact = false }: { source?: st
           className="min-w-0 flex-1 rounded-full bg-transparent px-4 py-3 text-base text-ink placeholder:text-muted outline-none"
         />
         <button type="submit" disabled={pending} className="btn-green disabled:opacity-60">
-          {pending ? "Joining…" : "Notify me at launch"}
+          {pending ? "Joining…" : "Notify me"}
         </button>
       </div>
 
       <label htmlFor={`${id}-consent`} className="mt-3 flex items-start gap-2 text-sm text-ink-soft">
         <input id={`${id}-consent`} name="consent" type="checkbox" required className="mt-1 size-4 accent-[var(--green)]" />
-        <span>Email me when Flowcam launches. One launch email, no spam; unsubscribe anytime.</span>
+        <span>
+          Email me when Flowcam Pro launches. One email, no spam; unsubscribe anytime. <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">Privacy</Link>
+        </span>
       </label>
 
       {state.status === "error" && (

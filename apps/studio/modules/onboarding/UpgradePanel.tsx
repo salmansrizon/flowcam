@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { StartTrialButton } from "../billing/BillingButtons";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProBadge } from "./ProBadge";
+import { ProSoonLink, useProOpen } from "./ProSoon";
 import { foundingOpen, money, type Pricing } from "./pricing";
 import { loadPricing } from "./loadPricing";
 
 /** Explains one Pro feature and the plan. Prices come from the `pricing` table; if that is unusable, no numbers are shown. */
 export function UpgradePanel({ feature, benefit, open, onOpenChange }: { feature: string; benefit: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const pro = useProOpen();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -18,8 +20,17 @@ export function UpgradePanel({ feature, benefit, open, onOpenChange }: { feature
         </DialogHeader>
         {open && <PricingBody />}
         <DialogFooter className="items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">Card required. Cancel any time.</span>
-          <StartTrialButton />
+          {pro === false ? (
+            <>
+              <span className="text-xs text-muted-foreground">Pro launches soon. Get an email the day it opens.</span>
+              <ProSoonLink />
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">Card required. Cancel any time.</span>
+              <StartTrialButton />
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

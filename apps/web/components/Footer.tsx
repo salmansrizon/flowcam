@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { features } from "@/lib/features";
+import { STUDIO_URL } from "@/lib/site";
 import { Logo } from "./Nav";
 
 const col = "grid content-start gap-2";
@@ -24,14 +25,16 @@ export function Footer() {
           <h2 className="font-bold text-ink">Product</h2>
           <Link href="/#pricing" className={a}>Pricing</Link>
           <Link href="/#faq" className={a}>FAQ</Link>
-          <Link href="/#waitlist" className={a}>Join the waitlist</Link>
+          <a href={STUDIO_URL} className={a}>Open the Studio</a>
+          <Link href="/waitlist" className={a}>Pro waitlist</Link>
+          <Link href="/privacy" className={a}>Privacy</Link>
         </nav>
         <nav aria-label="Project" className={col}>
           <h2 className="font-bold text-ink">Project</h2>
           <a href="https://github.com/salmansrizon/flowcam" className={a}>GitHub</a>
         </nav>
       </div>
-      <p className="container-page mt-10 text-sm text-muted">© 2026 Flowcam. Launching soon.</p>
+      <p className="container-page mt-10 text-sm text-muted">© 2026 Flowcam. Free today, Pro launching soon.</p>
     </footer>
   );
 }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AiError, clearPending, formatPrice, loadPending, savePending, startJob, useAiPrices, waitForJob, type JobStatus } from "../client";
 import type { AiJobIO, AiJobKind, AiQuality } from "../types";
+import { ProSoonLink, useProOpen } from "../../onboarding/ProSoon";
 
 type Phase = { t: "idle" } | { t: "running"; status: JobStatus | "starting" } | { t: "error"; err: Error } | { t: "preview"; result: unknown; ctx?: string };
 
@@ -57,7 +58,8 @@ type Props<K extends AiJobKind> = {
 
 /** Quality choice with its Credit price, Generate, progress and errors, shared by every AI feature. */
 export function AiJobDialog<K extends AiJobKind>(p: Props<K>) {
-  const prices = useAiPrices(p.open);
+  const pro = useProOpen();
+  const prices = useAiPrices(p.open && pro === true);
   const [quality, setQuality] = useState<AiQuality>("standard");
   const [phase, setPhase] = useState<Phase>({ t: "idle" });
   const resumed = useRef(false);
@@ -97,7 +99,7 @@ export function AiJobDialog<K extends AiJobKind>(p: Props<K>) {
 
   // A Job that was running when the page reloaded: reopen the dialog and keep polling.
   useEffect(() => {
-    if (resumed.current) return;
+    if (resumed.current || pro !== true) return;
     const pending = loadPending(p.feature);
     if (!pending || (pending.ctx !== undefined && pending.ctx !== p.ctx)) return;
     resumed.current = true;
@@ -107,9 +109,22 @@ export function AiJobDialog<K extends AiJobKind>(p: Props<K>) {
       return settle(pending.id, pending.ctx);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pro]);
 
   const price = prices?.[`${p.kind}:${quality}`];
+  if (pro === false) {
+    return (
+      <Dialog open={p.open} onOpenChange={p.onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{p.title}</DialogTitle>
+            <DialogDescription>AI arrives with Pro, which launches soon. Everything else in the Studio is free and works now.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter><ProSoonLink /></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
   return (
     <Dialog open={p.open} onOpenChange={(o) => (!busy || o) && p.onOpenChange(o)}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">

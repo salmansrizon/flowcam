@@ -14,13 +14,13 @@ export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promis
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const consent = form.get("consent") === "on";
   const rawSource = String(form.get("source") ?? "home");
-  const source = rawSource === "home" || featureBySlug(rawSource) ? rawSource : "home";
+  const source = rawSource === "home" || rawSource === "waitlist" || featureBySlug(rawSource) ? rawSource : "home";
 
   if (!EMAIL.test(email) || email.length > 254) {
     return { status: "error", message: "Enter a valid email address." };
   }
   if (!consent) {
-    return { status: "error", message: "Tick the box so we can email you at launch." };
+    return { status: "error", message: "Tick the box so we can email you when Pro launches." };
   }
 
   const url = process.env.SUPABASE_URL;
@@ -44,7 +44,7 @@ export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promis
     cache: "no-store",
   });
 
-  if (res.status === 409) return { status: "already", message: "You're already on the list. We'll email you at launch." };
+  if (res.status === 409) return { status: "already", message: "You're already on the list. We'll email you when Pro launches." };
   if (!res.ok) return { status: "error", message: "Something went wrong saving your email. Please try again." };
-  return { status: "ok", message: "You're on the list. We'll email you the day Flowcam launches." };
+  return { status: "ok", message: "You're on the list. We'll email you the day Flowcam Pro launches." };
 }

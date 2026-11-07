@@ -10,10 +10,12 @@ import { FAQ } from "@/components/FAQ";
 import { ClosingCta } from "@/components/ClosingCta";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
+import { BoardsScene } from "@/components/BoardsScene";
 
 export default function Home() {
   return (
     <>
+      <BoardsScene />
       <Nav />
       <main>
         <Hero />

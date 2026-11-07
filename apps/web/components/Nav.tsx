@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STUDIO_URL } from "@/lib/site";
 import { MobileMenu } from "./MobileMenu";
 
 const links = [
@@ -6,6 +7,7 @@ const links = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/#faq", label: "FAQ" },
+  { href: "/waitlist", label: "Pro waitlist" },
 ];
 
 export function Logo() {
@@ -35,7 +37,7 @@ export function Nav() {
             ))}
           </ul>
           <div className="flex items-center gap-2">
-            <Link href="/#waitlist" className="btn-green !px-4 !py-2 text-sm sm:text-base">Join the waitlist</Link>
+            <a href={STUDIO_URL} className="btn-green !px-4 !py-2 text-sm sm:text-base">Try Flowcam free</a>
             <MobileMenu links={links} />
           </div>
         </div>
