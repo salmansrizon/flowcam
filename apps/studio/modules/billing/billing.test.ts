@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEvent, periodStart } from "./events";
+import { addMonths, dueMonth, parseEvent, periodStart } from "./events";
 import { sign, verifySignature } from "./signature";
 
 describe("verifySignature", () => {
@@ -49,5 +49,31 @@ describe("periodStart", () => {
   it("steps back one interval", () => {
     expect(periodStart(new Date("2030-03-15T00:00:00Z"), "month").toISOString()).toBe("2030-02-15T00:00:00.000Z");
     expect(periodStart(new Date("2030-03-15T00:00:00Z"), "year").toISOString()).toBe("2029-03-15T00:00:00.000Z");
+  });
+});
+
+describe("addMonths", () => {
+  it("clamps to the month's last day", () => {
+    expect(addMonths(new Date("2031-01-31T10:00:00Z"), 1).toISOString()).toBe("2031-02-28T10:00:00.000Z");
+    expect(addMonths(new Date("2032-01-31T10:00:00Z"), 1).toISOString()).toBe("2032-02-29T10:00:00.000Z");
+    expect(addMonths(new Date("2031-01-31T10:00:00Z"), 2).toISOString()).toBe("2031-03-31T10:00:00.000Z");
+    expect(addMonths(new Date("2030-12-15T00:00:00Z"), 1).toISOString()).toBe("2031-01-15T00:00:00.000Z");
+  });
+});
+
+describe("dueMonth", () => {
+  const last = new Date("2030-03-15T00:00:00Z");
+  const end = new Date("2031-03-15T00:00:00Z");
+  it("is null until a month has passed since the last grant", () => {
+    expect(dueMonth(last, new Date("2030-04-14T23:59:59Z"), end)).toBeNull();
+  });
+  it("returns the latest month due, anchored on the last grant", () => {
+    expect(dueMonth(last, new Date("2030-04-15T00:00:00Z"), end)?.toISOString()).toBe("2030-04-15T00:00:00.000Z");
+    expect(dueMonth(last, new Date("2030-07-20T00:00:00Z"), end)?.toISOString()).toBe("2030-07-15T00:00:00.000Z");
+  });
+  it("ignores where the period end is, except leaving its last week to the renewal", () => {
+    const moved = new Date("2031-03-15T00:00:07Z"); // e.g. a cancel's ends_at a few seconds off
+    expect(dueMonth(last, new Date("2030-07-20T00:00:00Z"), moved)?.toISOString()).toBe("2030-07-15T00:00:00.000Z");
+    expect(dueMonth(new Date("2031-02-15T00:00:00Z"), new Date("2031-03-15T00:00:01Z"), moved)).toBeNull();
   });
 });

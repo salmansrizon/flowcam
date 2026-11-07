@@ -39,7 +39,18 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).sli
 /** charge_hold / release_hold throw "already settled" on a second call: that is the idempotent outcome we want. */
 const settled = (e: unknown) => /already settled/.test(message(e));
 
+/** Testing only: OPENROUTER_TEST_MODEL (e.g. openrouter/free) runs text Jobs on that model and refuses paid image/voiceover calls. */
+function testModel(kind: AiJobKind): string | null {
+  const m = process.env.OPENROUTER_TEST_MODEL;
+  if (!m) return null;
+  if (process.env.NODE_ENV === "production") throw new Error("OPENROUTER_TEST_MODEL is set in production. Unset it.");
+  if (!isText(kind)) throw new Error(`${kind} Jobs are off while OPENROUTER_TEST_MODEL is set: no free model for them.`);
+  return m;
+}
+
 async function models(job: JobRow, quality: AiQuality): Promise<string[]> {
+  const test = testModel(job.kind);
+  if (test) return [test];
   const { data, error } = await supabaseAdmin().from("ai_job_config").select("models").eq("kind", job.kind).eq("quality", quality).single();
   if (error || !data) throw new Error(`No AI config for ${job.kind}/${quality}`);
   return data.models as string[];

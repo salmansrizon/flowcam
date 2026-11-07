@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "../../lib/supabase/admin";
 import { planLabel } from "../account/plan";
-import { placeHold, releaseHold } from "../credits/server";
+import { grantYearlyMonth, placeHold, releaseHold } from "../credits/server";
 import { WORDS_PER_MINUTE, wordCount } from "./demo";
 import { AI_JOB_KINDS, AI_QUALITIES, type AiJobIO, type AiJobKind, type AiQuality } from "./types";
 
@@ -70,6 +70,7 @@ export async function enqueueJob(uid: string, body: { kind?: unknown; quality?: 
   const credits = cfg.credits * (cfg.unit === "minute" ? voiceoverMinutes((input as AiJobIO["voiceover"]["input"]).text) : 1);
 
   await checkFreeLimits(uid);
+  await grantYearlyMonth(uid);
   let holdId: number;
   try {
     holdId = await placeHold(uid, credits, `AI ${kind} (${quality})`);

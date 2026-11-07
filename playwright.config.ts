@@ -24,5 +24,7 @@ export default defineConfig({
     url: `http://localhost:${port}`,
     // Never test against whatever else is on the port (e.g. apps/web).
     reuseExistingServer: false,
+    // The e2e AI tests expect the demo provider's results, whatever key .env.local holds.
+    env: { ...(process.env as Record<string, string>), OPENROUTER_API_KEY: "demo" },
   },
 });

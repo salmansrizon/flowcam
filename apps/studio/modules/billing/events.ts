@@ -54,3 +54,31 @@ export function periodStart(end: Date, interval: "month" | "year"): Date {
   else d.setUTCMonth(d.getUTCMonth() - 1);
   return d;
 }
+
+/** `d` plus `n` months, clamped to the month's last day (Jan 31 + 1 is Feb 28/29, not Mar 3). */
+export function addMonths(d: Date, n: number): Date {
+  const out = new Date(d);
+  out.setUTCDate(1);
+  out.setUTCMonth(out.getUTCMonth() + n);
+  const last = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
+  out.setUTCDate(Math.min(d.getUTCDate(), last));
+  return out;
+}
+
+/** Leaves the last week of a yearly period to the renewal event, whose Credit key comes from the new period. */
+const RENEWAL_MARGIN_MS = 7 * 86_400_000;
+
+/**
+ * For yearly Pro: the start of the latest month due since the last monthly grant started at `last`, or null when none
+ * is due yet or it falls in the period's last week. Anchored on the last grant, not the period end, so a moved period
+ * end cannot create a second key for the same month. ponytail: a clamped day (31 to 28) stays clamped afterwards.
+ */
+export function dueMonth(last: Date, now: Date, periodEnd: Date): Date | null {
+  let due: Date | null = null;
+  for (let n = 1; n <= 12; n++) {
+    const d = addMonths(last, n);
+    if (d > now) break;
+    due = d;
+  }
+  return due && due.getTime() < periodEnd.getTime() - RENEWAL_MARGIN_MS ? due : null;
+}
