@@ -16,6 +16,7 @@ try {
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SECRET_KEY;
+delete process.env.OPENROUTER_TEST_MODEL; // These Jobs run on the demo provider, image and voiceover included.
 
 // The app code imports "server-only" and the "@/" alias, which plain Vitest does not know; point it at the real admin client.
 vi.mock("server-only", () => ({}));

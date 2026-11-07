@@ -31,6 +31,7 @@ describe.skipIf(!key || !url)("Billing webhooks against the dev database (skippe
   let b: typeof import("./billing");
   let w: typeof import("./webhook");
   let sig: typeof import("./signature");
+  let c: typeof import("../credits/server");
   const created: string[] = [];
 
   beforeAll(async () => {
@@ -38,6 +39,7 @@ describe.skipIf(!key || !url)("Billing webhooks against the dev database (skippe
     b = await import("./billing");
     w = await import("./webhook");
     sig = await import("./signature");
+    c = await import("../credits/server");
   });
   afterAll(async () => {
     // Subscriptions, ledger lines and (user_id set null) events go with the deleted user.
@@ -85,6 +87,34 @@ describe.skipIf(!key || !url)("Billing webhooks against the dev database (skippe
     await pay(uid, "pro", "year");
     expect(await sub(uid)).toMatchObject({ plan: "pro", paid_once: true, billing_interval: "year", founding: foundingOpen(p) });
     expect(await balance(uid)).toBe(p.monthlyCredits);
+  });
+
+  it("yearly Pro gets monthly Credits each month, once", async () => {
+    const uid = await user();
+    const p = await pricing();
+    // A yearly Pro whose last monthly grant started 40 days ago (the ledger is append-only, so grant it back-dated).
+    const last = new Date(Date.now() - 40 * 86_400_000);
+    await db.from("subscriptions").insert({ user_id: uid, plan: "pro", status: "active", billing_interval: "year", current_period_end: new Date(Date.now() + 300 * 86_400_000).toISOString() });
+    await db.rpc("grant_monthly_credits", { uid, period_start: last.toISOString() });
+    await c.grantYearlyMonth(uid);
+    await c.grantYearlyMonth(uid);
+    // Moving the period end (e.g. a cancel's ends_at) must not create a second key for the same month.
+    await db.from("subscriptions").update({ current_period_end: new Date(Date.now() + 301 * 86_400_000).toISOString() }).eq("user_id", uid);
+    await c.grantYearlyMonth(uid);
+    const grants = (await db.from("credit_ledger").select("note").eq("user_id", uid).eq("kind", "grant").eq("bucket", "monthly")).data!;
+    expect(grants).toHaveLength(2);
+    expect(await balance(uid)).toBe(p.monthlyCredits); // last month's leftover expired first
+  });
+
+  it("monthly Pro and Trial get no extra grant on demand", async () => {
+    const monthly = await user();
+    await pay(monthly, "pro", "month");
+    const trial = await user();
+    await pay(trial, "trial");
+    const before = [await balance(monthly), await balance(trial)];
+    await c.grantYearlyMonth(monthly);
+    await c.grantYearlyMonth(trial);
+    expect([await balance(monthly), await balance(trial)]).toEqual(before);
   });
 
   it("a Top-up adds topup_credits that stay in the topup bucket", async () => {

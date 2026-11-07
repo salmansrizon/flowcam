@@ -104,6 +104,23 @@ describe("worker", () => {
     expect(tables.ai_jobs[0]).toMatchObject({ status: "succeeded", attempts: 2 });
   });
 
+  it("OPENROUTER_TEST_MODEL runs text Jobs on that model and refuses image Jobs without calling a model", async () => {
+    vi.stubEnv("OPENROUTER_TEST_MODEL", "openrouter/free");
+    try {
+      tables.ai_jobs = [job(), job({ id: "i", kind: "image", input: { prompt: "p", width: 64, height: 64 } })];
+      const p = provider((r) => ({ result: { scripts: ["x", "y"] }, model: r.models[0] }));
+      await runJob("j1", p);
+      await runJob("i", p);
+      expect(p.calls.map((c) => c.models)).toEqual([["openrouter/free"]]);
+      expect(tables.ai_jobs[0]).toMatchObject({ status: "succeeded", model: "openrouter/free" });
+      expect(tables.ai_jobs[1]).toMatchObject({ status: "failed" });
+      expect(tables.ai_jobs[1].error).toMatch(/OPENROUTER_TEST_MODEL/);
+      expect(holds).toEqual({ charged: [7], released: [7] });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("ignores a Job that is not queued", async () => {
     tables.ai_jobs = [job({ status: "running" })];
     const p = provider(() => ({ result: {}, model: "m" }));

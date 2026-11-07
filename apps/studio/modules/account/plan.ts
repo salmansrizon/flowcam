@@ -1,8 +1,13 @@
 export type PlanLabel = "Free" | "Trial" | "Pro";
 
-/** The plan to show for a `subscriptions` row: only an active, unexpired one counts (mirrors `is_pro`). */
+/** The one "active and unexpired" rule (Trial included). Mirrors SQL `is_pro()` and `grant_monthly_credits`. */
+export function isActive(row: { status: string; current_period_end: string } | null | undefined): boolean {
+  return !!row && row.status === "active" && new Date(row.current_period_end) > new Date();
+}
+
+/** The plan to show for a `subscriptions` row: only an active, unexpired one counts. */
 export function planLabel(row: { plan: string; status: string; current_period_end: string } | null): PlanLabel {
-  if (!row || row.status !== "active" || new Date(row.current_period_end) <= new Date()) return "Free";
+  if (!row || !isActive(row)) return "Free";
   return row.plan === "trial" ? "Trial" : "Pro";
 }
 

@@ -1,12 +1,18 @@
 import "server-only";
 import type { CreditsResponse } from "./types";
 import { supabaseServer } from "@/lib/supabase/server";
+import { grantYearlyMonth } from "./server";
 
 /** The signed-in user's Credits, read through row-level security (their own lines only). Null when signed out. */
 export async function readCredits(): Promise<CreditsResponse | null> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  try {
+    await grantYearlyMonth(user.id);
+  } catch (e) {
+    console.error("grantYearlyMonth failed", e); // Still show the balance; the next read or Hold grants it.
+  }
   const { data, error } = await supabase.from("credit_ledger").select("id, kind, bucket, amount, note, created_at").order("id", { ascending: false });
   if (error) throw new Error(error.message);
   const byBucket: Record<string, number> = {};

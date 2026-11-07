@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import { planLabel } from "@/modules/account/plan";
 import { billing, type Item } from "@/modules/billing/billing";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     if (item.kind !== "topup") {
       const { data: sub } = await supabaseAdmin().from("subscriptions").select("plan,status,current_period_end").eq("user_id", data.user.id).maybeSingle();
       if (item.kind === "trial" && sub) return Response.json({ error: "The Trial is for accounts that have never subscribed." }, { status: 409 });
-      if (item.kind === "pro" && sub?.plan === "pro" && sub.status === "active" && new Date(sub.current_period_end) > new Date()) return Response.json({ error: "You are already on Pro." }, { status: 409 });
+      if (item.kind === "pro" && planLabel(sub) === "Pro") return Response.json({ error: "You are already on Pro." }, { status: 409 });
     }
     return Response.json({ url: await billing().checkout(data.user.id, data.user.email, item) });
   } catch (e) {

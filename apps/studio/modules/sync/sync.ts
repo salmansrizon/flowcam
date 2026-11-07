@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "../../lib/supabase/client";
 import { imageIdsOf, readAsset, sha256Hex, writeAsset } from "../presentation/assets";
 import { clearMeta, readLocal, readMeta, writeLocal, writeMeta } from "../presentation/local";
+import { isActive } from "../account/plan";
 
 // Sync (ADR 0005): only for a signed-in Pro user. Everyone else makes no Sync network calls.
 // Local saves are pushed after a debounce with the cloud version they were based on; a stale push is refused
@@ -66,7 +67,7 @@ async function context(): Promise<Ctx | "off" | "unknown"> {
     if (!pro || pro.uid !== uid || Date.now() - pro.at > PRO_TTL_MS) {
       const { data: row, error } = await sb.from("subscriptions").select("status,current_period_end").maybeSingle();
       if (error) return pro?.uid === uid ? (pro.value ? { sb, uid } : "off") : "unknown";
-      pro = { uid, at: Date.now(), value: !!row && row.status === "active" && new Date(row.current_period_end) > new Date() };
+      pro = { uid, at: Date.now(), value: isActive(row) };
     }
     return pro.value ? { sb, uid } : "off";
   } catch {

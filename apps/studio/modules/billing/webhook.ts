@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { grantMonthlyCredits, grantTopupCredits, grantTrialCredits } from "../credits/server";
 import { foundingOpen } from "../onboarding/pricing";
 import { billing, billingProvider, loadPricingServer } from "./billing";
 import { parseEvent, periodStart, type BillingEvent } from "./events";
@@ -51,11 +52,6 @@ async function userBySubscription(subId: string | null): Promise<string | null> 
   return data?.user_id ?? null;
 }
 
-async function rpc(fn: string, args: Record<string, unknown>) {
-  const { error } = await supabaseAdmin().rpc(fn, args);
-  if (error) throw new Error(error.message);
-}
-
 /** Changes the user's row only while it still holds the event's subscription, so an old subscription's events cannot touch a newer one. */
 async function update(uid: string, subId: string | null, fields: Record<string, unknown>): Promise<boolean> {
   let q = supabaseAdmin().from("subscriptions").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", uid);
@@ -93,8 +89,8 @@ async function apply(ev: BillingEvent, uid: string): Promise<boolean> {
         updated_at: new Date().toISOString(),
       });
       if (error) throw new Error(error.message);
-      if (trial) await rpc("grant_trial_credits", { uid });
-      else await rpc("grant_monthly_credits", { uid, period_start: periodStart(end, interval).toISOString() });
+      if (trial) await grantTrialCredits(uid);
+      else await grantMonthlyCredits(uid, periodStart(end, interval));
       return true;
     }
     case "subscription_updated":
@@ -105,7 +101,7 @@ async function apply(ev: BillingEvent, uid: string): Promise<boolean> {
       const { data: sub } = await db.from("subscriptions").select("billing_interval").eq("user_id", uid).maybeSingle();
       const interval = ev.interval ?? (sub?.billing_interval as "month" | "year" | null) ?? "month";
       if (!(await update(uid, ev.subscriptionId, { plan: "pro", status: "active", current_period_end: ev.renewsAt.toISOString(), cancel_at_period_end: false, paid_once: true, billing_interval: interval }))) return false;
-      await rpc("grant_monthly_credits", { uid, period_start: periodStart(ev.renewsAt, interval).toISOString() });
+      await grantMonthlyCredits(uid, periodStart(ev.renewsAt, interval));
       return true;
     }
     case "subscription_payment_success":
@@ -119,7 +115,7 @@ async function apply(ev: BillingEvent, uid: string): Promise<boolean> {
       if (ev.kind !== "topup" || ev.status !== "paid" || !ev.orderId) return false;
       const pricing = await loadPricingServer();
       if (!pricing) throw new Error("Pricing is not available.");
-      await rpc("grant_topup_credits", { uid, amount: pricing.topupCredits, ref: ev.orderId });
+      await grantTopupCredits(uid, pricing.topupCredits, ev.orderId);
       return true;
     }
     default:
